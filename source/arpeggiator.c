@@ -30,12 +30,23 @@ typedef struct {
 
 
 typedef enum {
-    MIDI_IN        = 0,
-    MIDI_OUT       = 1,
-    BPM_PORT       = 2,
-    DIVISIONS_PORT = 3,
-    SYNC_PORT      = 4,
-    CONTROL_PORT   = 5
+    MIDI_IN = 0,
+    MIDI_OUT,
+    BPM_PORT,
+    DIVISIONS_PORT,
+    SYNC_PORT,
+    CONTROL_PORT,   
+    OCTAVESPREAD,
+    OCTAVEMODE,
+    VELOCITYPATTERNLENGTH,
+    PATTERNVEL1,
+    PATTERNVEL2,
+    PATTERNVEL3,
+    PATTERNVEL4,
+    PATTERNVEL5,
+    PATTERNVEL6,
+    PATTERNVEL7,
+    PATTERNVEL8
 } PortIndex;
 
 
@@ -65,9 +76,6 @@ typedef struct {
     const LV2_Atom_Sequence* MIDI_in;
     LV2_Atom_Sequence*       MIDI_out;
 
-    float*    changeBpm;
-    float*    changedDiv;
-    int*   	  sync;
     float     divisions;
     double    samplerate;
     int       prevSync;
@@ -83,18 +91,118 @@ typedef struct {
     size_t    active_notes_index;
     size_t    note_played;
     size_t    active_notes;
+    size_t    pattern_index;
+    int       octave_index;
     bool      triggered;
+    bool      octave_up;
     float     speed; // Transport speed (usually 0=stop, 1=play)
     float     prevSpeed;
     float     beatInMeasure;
 
+    float   **velocity_pattern[8];
+
     float 	  elapsed_len; // Frames since the start of the last click
     uint32_t  wave_offset; // Current play offset in the wave
+    int       previousOctaveMode;
     
     // Envelope parameters
     uint32_t  attack_len;
     uint32_t  decay_len;
+
+    float*    changeBpm;
+    float*    changedDiv;
+    int*   	  sync;
+    float*    octaveSpreadParam;
+    float*    octaveModeParam;
+    float*    velocityPatternLengthParam;
+    float*    patternVel1Param;
+    float*    patternVel2Param;
+    float*    patternVel3Param;
+    float*    patternVel4Param;
+    float*    patternVel5Param;
+    float*    patternVel6Param;
+    float*    patternVel7Param;
+    float*    patternVel8Param;
 } Arpeggiator;
+
+
+
+static uint8_t 
+octaveHandler(Arpeggiator* self)
+{
+    uint8_t octave = 0; 
+
+    int octaveMode = *self->octaveModeParam;
+
+    if (octaveMode != self->previousOctaveMode) {
+        switch (octaveMode) 
+        {
+            case 0:
+                self->octave_index = self->note_played % (int)*self->octaveSpreadParam;
+                break;
+            case 1:
+                self->octave_index = self->note_played % (int)*self->octaveSpreadParam;
+                self->octave_index = (int)*self->octaveSpreadParam;
+                break;
+            case 2:
+                self->octave_index = self->note_played % (int)(*self->octaveSpreadParam * 2);
+                if (self->octave_index > (int)*self->octaveSpreadParam) {
+                    self->octave_index = abs((int)*self->octaveSpreadParam - (self->octave_index - (int)*self->octaveSpreadParam)) % (int)*self->octaveSpreadParam; 
+                }
+                self->octave_up = !self->octave_up;
+                break;
+            case 3:
+                self->octave_index = (int)*self->octaveSpreadParam;
+                self->octave_up = !self->octave_up;
+                break;
+        }
+        self->previousOctaveMode = octaveMode;
+    }
+
+    if (*self->octaveSpreadParam > 1) {
+        switch (octaveMode)
+        {
+            case 0:
+                octave = 12 * self->octave_index; 
+                self->octave_index = (self->octave_index + 1) % (int)*self->octaveSpreadParam;
+                break;
+            case 1:
+                octave = 12 * self->octave_index; 
+                self->octave_index--;
+                self->octave_index = (self->octave_index < 0) ? (int)*self->octaveSpreadParam - 1 : self->octave_index;
+                debug_print("octave index = %i\n", self->octave_index);
+                break;
+            case 2:
+                octave = 12 * self->octave_index; 
+
+                if (self->octave_up) {
+                    debug_print("OCTAVE UP\n");
+                    self->octave_index++;
+                    self->octave_up = (self->octave_index >= (int)*self->octaveSpreadParam - 1) ? false : true;
+                } else {
+                    debug_print("OCTAVE DOWN\n");
+                    self->octave_index--;
+                    self->octave_up = (self->octave_index <= 0) ? true : false;
+                }
+                debug_print("octave index = %i\n", self->octave_index);
+                break;
+            case 3:
+                octave = 12 * self->octave_index; 
+                if (!self->octave_up) {
+                    self->octave_index--;
+                    self->octave_up = (self->octave_index <= 0) ? true : false;
+                } else {
+                    self->octave_index = (self->octave_index + 1) % (int)*self->octaveSpreadParam;
+                    self->octave_up = (self->octave_index >= (int)*self->octaveSpreadParam - 1) ? false : true;
+                }
+                break;
+        }
+    } else {
+        self->octave_index = 0;
+    }
+
+    return octave;
+}
 
 
 
@@ -126,8 +234,9 @@ handleNoteOn(Arpeggiator* self, const uint32_t outCapacity)
         if (self->midi_notes[self->note_played] > 0
                 && self->midi_notes[self->note_played] < 128)
         {
-            uint8_t octave = 0;
-            uint8_t velocity = 100;
+            uint8_t octave = octaveHandler(self);
+            uint8_t velocity = (uint8_t)**self->velocity_pattern[self->pattern_index];
+            self->pattern_index = (self->pattern_index + 1) % (int)*self->velocityPatternLengthParam; 
 
             //create MIDI note on message
             uint8_t midi_note = self->midi_notes[self->note_played] + octave;
@@ -190,8 +299,43 @@ connect_port(LV2_Handle instance,
         case CONTROL_PORT:
             self->control = (LV2_Atom_Sequence*)data;
             break;
+        case OCTAVESPREAD:
+            self->octaveSpreadParam = (float*)data;
+            break;
+        case OCTAVEMODE:
+            self->octaveModeParam  = (float*)data;
+            break;
+        case VELOCITYPATTERNLENGTH:
+            self->velocityPatternLengthParam = (float*)data;
+            break;
+        case PATTERNVEL1:
+            self->patternVel1Param = (float*)data;
+            break;
+        case PATTERNVEL2:
+            self->patternVel2Param = (float*)data;
+            break;
+        case PATTERNVEL3:
+            self->patternVel3Param = (float*)data;
+            break;
+        case PATTERNVEL4:
+            self->patternVel4Param = (float*)data;
+            break;
+        case PATTERNVEL5:
+            self->patternVel5Param = (float*)data;
+            break;
+        case PATTERNVEL6:
+            self->patternVel6Param = (float*)data;
+            break;
+        case PATTERNVEL7:
+            self->patternVel7Param = (float*)data;
+            break;
+        case PATTERNVEL8:
+            self->patternVel8Param = (float*)data;
+            break;
     }
 }
+
+
 
 static void
 activate(LV2_Handle instance)
@@ -202,6 +346,8 @@ activate(LV2_Handle instance)
     self->divisions =*self->changedDiv;
     self->pos = 0;
 }
+
+
 
 static LV2_Handle
 instantiate(const LV2_Descriptor*     descriptor,
@@ -258,9 +404,13 @@ instantiate(const LV2_Descriptor*     descriptor,
     self->prevSpeed = 0;
     self->midi_index = 0;
     self->triggered = false;
+    self->octave_up = false;
     self->active_notes_index = 0;
     self->note_played = 0;
     self->active_notes = 0;
+    self->pattern_index = 0;
+    self->previousOctaveMode = 0;
+    self->octave_index = 0;
 
     for (unsigned i = 0; i < NUM_VOICES; i++) {
         self->midi_notes[i] = 0;
@@ -270,6 +420,15 @@ instantiate(const LV2_Descriptor*     descriptor,
             self->noteoff_buffer[i][x] = 0;
         }
     }
+    
+    self->velocity_pattern[0]  = &self->patternVel1Param;
+    self->velocity_pattern[1]  = &self->patternVel2Param;
+    self->velocity_pattern[2]  = &self->patternVel3Param;
+    self->velocity_pattern[3]  = &self->patternVel4Param;
+    self->velocity_pattern[4]  = &self->patternVel5Param;
+    self->velocity_pattern[5]  = &self->patternVel6Param;
+    self->velocity_pattern[6]  = &self->patternVel7Param;
+    self->velocity_pattern[7]  = &self->patternVel8Param;
 
     return (LV2_Handle)self;
 }
@@ -312,6 +471,8 @@ update_position(Arpeggiator* self, const LV2_Atom_Object* obj)
         self->elapsed_len           = beat_beats * frames_per_beat;
     }
 }
+
+
 
 static uint32_t 
 resetPhase(Arpeggiator* self)
@@ -371,6 +532,8 @@ run(LV2_Handle instance, uint32_t n_samples)
             case LV2_MIDI_MSG_NOTE_ON:
                 if (self->active_notes == 0 && *self->sync == 0) {
                     self->pos = 0;
+                    self->octave_index = 0;
+                    self->pattern_index = 0;
                 }
                 self->active_notes++;
                 find_free_voice = 0;
