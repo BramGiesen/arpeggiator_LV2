@@ -18,10 +18,7 @@
 #define debug_print(...) \
     ((void)((DEBUG) ? fprintf(stderr, __VA_ARGS__) : 0))
 
-
-#ifndef M_PI
-#    define M_PI 3.14159265
-#endif
+#define NUM_VOICES 16
 #define PLUGIN_URI "http://bramgiesen.com/arpeggiator"
 
 
@@ -80,15 +77,20 @@ typedef struct {
     uint32_t  pos;
     uint32_t  period;
     uint32_t  h_wavelength;
-
-    bool      printed;
+    uint8_t   midi_notes[NUM_VOICES];
+    uint32_t  noteoff_buffer[NUM_VOICES][2];
+    size_t    midi_index;
+    size_t    active_notes_index;
+    size_t    note_played;
+    size_t    active_notes;
+    bool      triggered;
     float     speed; // Transport speed (usually 0=stop, 1=play)
     float     prevSpeed;
     float     beatInMeasure;
 
     float 	  elapsed_len; // Frames since the start of the last click
     uint32_t  wave_offset; // Current play offset in the wave
-
+    
     // Envelope parameters
     uint32_t  attack_len;
     uint32_t  decay_len;
@@ -112,6 +114,54 @@ createMidiEvent(Arpeggiator* self, uint8_t status, uint8_t note, uint8_t velocit
     return msg;
 }
 
+
+
+static void
+handleNoteOn(Arpeggiator* self, const uint32_t outCapacity)
+{
+    size_t searched_voices = 0;
+    bool   note_found = false;
+    while (!note_found && searched_voices < NUM_VOICES)
+    {
+        if (self->midi_notes[self->note_played] > 0
+                && self->midi_notes[self->note_played] < 128)
+        {
+            uint8_t octave = 0;
+            uint8_t velocity = 100;
+
+            //create MIDI note on message
+            uint8_t midi_note = self->midi_notes[self->note_played] + octave;
+
+            LV2_Atom_MIDI onMsg = createMidiEvent(self, 144, midi_note, velocity);
+            lv2_atom_sequence_append_event(self->MIDI_out, outCapacity, (LV2_Atom_Event*)&onMsg);
+            self->noteoff_buffer[self->active_notes_index][0] = (uint32_t)midi_note;
+            self->active_notes_index = (self->active_notes_index + 1) % NUM_VOICES;
+            self->note_played = (self->note_played + 1) % NUM_VOICES;
+            note_found = true;
+        } else {
+            self->note_played = (self->note_played + 1) % NUM_VOICES;
+        }
+        searched_voices++;
+    }
+}
+
+
+
+static void
+handleNoteOff(Arpeggiator* self, const uint32_t outCapacity)
+{
+    for (size_t i = 0; i < NUM_VOICES; i++) {
+        if (self->noteoff_buffer[i][0] > 0) {
+            self->noteoff_buffer[i][1] += 1;
+            if (self->noteoff_buffer[i][1] > (uint32_t)(self->period * 0.75)) {
+                LV2_Atom_MIDI offMsg = createMidiEvent(self, 128, (uint8_t)self->noteoff_buffer[i][0], 0);
+                lv2_atom_sequence_append_event(self->MIDI_out, outCapacity, (LV2_Atom_Event*)&offMsg);
+                self->noteoff_buffer[i][0] = 0;
+                self->noteoff_buffer[i][1] = 0;
+            }
+        }
+    }
+}
 
 
 static void
@@ -205,8 +255,22 @@ instantiate(const LV2_Descriptor*     descriptor,
     self->samplerate = rate;
     self->prevSync   = 0; 
     self->beatInMeasure = 0;
-    self->printed = false;
     self->prevSpeed = 0;
+    self->midi_index = 0;
+    self->triggered = false;
+    self->active_notes_index = 0;
+    self->note_played = 0;
+    self->active_notes = 0;
+
+    for (unsigned i = 0; i < NUM_VOICES; i++) {
+        self->midi_notes[i] = 0;
+    }
+    for (unsigned i = 0; i < NUM_VOICES; i++) {
+        for (unsigned x = 0; x < 2; x++) {
+            self->noteoff_buffer[i][x] = 0;
+        }
+    }
+
     return (LV2_Handle)self;
 }
 
@@ -279,6 +343,7 @@ run(LV2_Handle instance, uint32_t n_samples)
         }
     }
 
+    self->MIDI_out->atom.type = self->MIDI_in->atom.type;
 
     const uint32_t out_capacity = self->MIDI_out->atom.size;
 
@@ -288,6 +353,7 @@ run(LV2_Handle instance, uint32_t n_samples)
     // Read incoming events
     LV2_ATOM_SEQUENCE_FOREACH(self->MIDI_in, ev)
     {
+        size_t search_note;
         if (ev->body.type == self->urid_midiEvent)
         {
             const uint8_t* const msg = (const uint8_t*)(ev + 1);
@@ -295,20 +361,50 @@ run(LV2_Handle instance, uint32_t n_samples)
             const uint8_t channel = msg[0] & 0x0F;
             const uint8_t status  = msg[0] & 0xF0;
 
+            uint8_t midi_note = msg[1];
+            uint8_t note_to_find;
+            size_t find_free_voice;
+            bool voice_found;
+
             switch (status)
             {
             case LV2_MIDI_MSG_NOTE_ON:
-                //append notes to list
+                if (self->active_notes == 0 && *self->sync == 0) {
+                    self->pos = 0;
+                }
+                self->active_notes++;
+                find_free_voice = 0;
+                voice_found = false;
+                while (find_free_voice < NUM_VOICES && !voice_found)
+                {
+                    if (self->midi_notes[find_free_voice] == 0) {  
+                        self->midi_notes[find_free_voice] = midi_note;
+                        voice_found = true;
+                    }
+                    find_free_voice++;
+                }
                 break;
             case LV2_MIDI_MSG_NOTE_OFF:
+                self->active_notes--;
+                note_to_find = midi_note;
+                search_note = 0;
+                while (search_note < NUM_VOICES) 
+                {
+                    if (self->midi_notes[search_note] == note_to_find) 
+                    {
+                        self->midi_notes[search_note] = 0;
+                        search_note = NUM_VOICES;
+                    }
+                    search_note++;
+                }
                 //remove notes from list
                 break;
             default:
                 break;
             }
         }
-        lv2_atom_sequence_append_event(self->MIDI_out,
-                out_capacity, ev);
+        //lv2_atom_sequence_append_event(self->MIDI_out,
+        //        out_capacity, ev);
     }
 
     for(uint32_t i = 0; i < n_samples; i ++) {
@@ -340,12 +436,16 @@ run(LV2_Handle instance, uint32_t n_samples)
         if(self->pos >= self->period && i < n_samples) {
             self->pos = 0;
         } else {
-            if(self->pos < self->h_wavelength) {
+            if(self->pos < self->h_wavelength && !self->triggered) {
                 //trigger MIDI message
-            } else {
+                handleNoteOn(self, out_capacity);
+                self->triggered = true;
+            } else if (self->pos > self->h_wavelength) {
                 //set gate
+                self->triggered = false;
             }
         }
+        handleNoteOff(self, out_capacity);
         self->pos += 1;
     }
 }
