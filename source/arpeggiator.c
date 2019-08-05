@@ -33,6 +33,7 @@ typedef enum {
     MIDI_IN = 0,
     MIDI_OUT,
     BPM_PORT,
+    LATCH_MODE,
     DIVISIONS_PORT,
     SYNC_PORT,
     CONTROL_PORT,   
@@ -96,10 +97,11 @@ typedef struct {
     int       octave_index;
     bool      triggered;
     bool      octave_up;
+    bool      latch_playing;
     float     speed; // Transport speed (usually 0=stop, 1=play)
     float     prevSpeed;
     float     beatInMeasure;
-
+    float     previous_latch;
     float   **velocity_pattern[8];
 
     float 	  elapsed_len; // Frames since the start of the last click
@@ -111,6 +113,7 @@ typedef struct {
     uint32_t  decay_len;
 
     float*    changeBpm;
+    float*    latch_mode;
     float*    changedDiv;
     int*   	  sync;
     float*    note_length;
@@ -292,6 +295,9 @@ connect_port(LV2_Handle instance,
         case BPM_PORT:
             self->changeBpm = (float*)data;
             break;
+        case LATCH_MODE:
+            self->latch_mode = (float*)data;
+            break;
         case DIVISIONS_PORT:
             self->changedDiv = (float*)data;
             break;
@@ -416,6 +422,8 @@ instantiate(const LV2_Descriptor*     descriptor,
     self->pattern_index = 0;
     self->previousOctaveMode = 0;
     self->octave_index = 0;
+    self->previous_latch = 0;
+    self->latch_playing = false;
 
     for (unsigned i = 0; i < NUM_VOICES; i++) {
         self->midi_notes[i] = 0;
@@ -535,10 +543,18 @@ run(LV2_Handle instance, uint32_t n_samples)
             switch (status)
             {
             case LV2_MIDI_MSG_NOTE_ON:
-                if (self->active_notes == 0 && *self->sync == 0) {
+                if (self->active_notes == 0 && *self->sync == 0 && !self->latch_playing) {
                     self->pos = 0;
                     self->octave_index = 0;
                     self->pattern_index = 0;
+                    self->note_played = 0;
+                    self->triggered = false;
+                }
+                if (self->active_notes == 0 && *self->latch_mode == 1) {
+                    self->latch_playing = true;
+                    for (unsigned i = 0; i < NUM_VOICES; i++) {
+                        self->midi_notes[i] = 0;
+                    }
                 }
                 self->active_notes++;
                 find_free_voice = 0;
@@ -556,14 +572,17 @@ run(LV2_Handle instance, uint32_t n_samples)
                 self->active_notes--;
                 note_to_find = midi_note;
                 search_note = 0;
-                while (search_note < NUM_VOICES) 
-                {
-                    if (self->midi_notes[search_note] == note_to_find) 
+                if (*self->latch_mode == 0) {
+                    self->latch_playing = false;
+                    while (search_note < NUM_VOICES) 
                     {
-                        self->midi_notes[search_note] = 0;
-                        search_note = NUM_VOICES;
+                        if (self->midi_notes[search_note] == note_to_find) 
+                        {
+                            self->midi_notes[search_note] = 0;
+                            search_note = NUM_VOICES;
+                        }
+                        search_note++;
                     }
-                    search_note++;
                 }
                 //remove notes from list
                 break;
@@ -573,6 +592,13 @@ run(LV2_Handle instance, uint32_t n_samples)
         }
         //lv2_atom_sequence_append_event(self->MIDI_out,
         //        out_capacity, ev);
+    }
+
+    if (*self->latch_mode != self->previous_latch) {
+        for (unsigned i = 0; i < NUM_VOICES; i++) {
+            self->midi_notes[i] = 0;
+        }
+        self->previous_latch = *self->latch_mode;
     }
 
     for(uint32_t i = 0; i < n_samples; i ++) {
