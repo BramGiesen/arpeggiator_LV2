@@ -36,6 +36,7 @@ typedef enum {
     DIVISIONS_PORT,
     SYNC_PORT,
     CONTROL_PORT,   
+    NOTELENGTH,
     OCTAVESPREAD,
     OCTAVEMODE,
     VELOCITYPATTERNLENGTH,
@@ -112,6 +113,7 @@ typedef struct {
     float*    changeBpm;
     float*    changedDiv;
     int*   	  sync;
+    float*    note_length;
     float*    octaveSpreadParam;
     float*    octaveModeParam;
     float*    velocityPatternLengthParam;
@@ -262,7 +264,7 @@ handleNoteOff(Arpeggiator* self, const uint32_t outCapacity)
     for (size_t i = 0; i < NUM_VOICES; i++) {
         if (self->noteoff_buffer[i][0] > 0) {
             self->noteoff_buffer[i][1] += 1;
-            if (self->noteoff_buffer[i][1] > (uint32_t)(self->period * 0.75)) {
+            if (self->noteoff_buffer[i][1] > (uint32_t)(self->period * *self->note_length)) {
                 LV2_Atom_MIDI offMsg = createMidiEvent(self, 128, (uint8_t)self->noteoff_buffer[i][0], 0);
                 lv2_atom_sequence_append_event(self->MIDI_out, outCapacity, (LV2_Atom_Event*)&offMsg);
                 self->noteoff_buffer[i][0] = 0;
@@ -298,6 +300,9 @@ connect_port(LV2_Handle instance,
             break;
         case CONTROL_PORT:
             self->control = (LV2_Atom_Sequence*)data;
+            break;
+        case NOTELENGTH:
+            self->note_length = (float*)data;
             break;
         case OCTAVESPREAD:
             self->octaveSpreadParam = (float*)data;

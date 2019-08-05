@@ -15,11 +15,12 @@
     a mod:MIDIPlugin ,
     lv2:UtilityPlugin ,
     lv2:Plugin ;
-    doap:name "Arp" ;
+    doap:name "Arpeggiator" ;
     doap:license "GPLv2+" ;
     rdfs:comment """
-a step sequencer with different record modes, focused on live playing.""" ;
-    lv2:minorVersion 2 ;
+A beat syncable arpeggiator with velocity patterns and octave spread.  
+""" ;
+    lv2:minorVersion 1 ;
     lv2:microVersion 0 ;
     lv2:optionalFeature lv2:hardRTCapable ;
 
@@ -28,13 +29,6 @@ doap:developer [
     foaf:homepage <>;
     foaf:mbox <mailto:bram@moddevices.com>;
     ];
-
-    lv2:minorVersion 3;
-    lv2:microVersion 0;
-
-rdfs:comment """
-Arpeggiator
-""";
 
 lv2:port
 [
@@ -68,9 +62,9 @@ lv2:port
     lv2:index 3 ;
     lv2:symbol "Divisions" ;
     lv2:name "Divisions";
-    lv2:default 4 ;
-    lv2:minimum 0.1 ;
-    lv2:maximum 32 ;
+    lv2:default 8 ;
+    lv2:minimum 0.05 ;
+    lv2:maximum 16 ;
     lv2:scalePoint [ rdfs:label "10 Notes";     rdf:value 0.05; ] ;
     lv2:scalePoint [ rdfs:label "8 Notes";      rdf:value 0.0625; ] ;
     lv2:scalePoint [ rdfs:label "6 Notes";      rdf:value 0.0937; ] ;
@@ -117,6 +111,15 @@ lv2:port
 [
     a lv2:InputPort, lv2:ControlPort ;
     lv2:index 6;
+    lv2:symbol "noteLength" ;
+    lv2:name "NoteLength" ;
+    lv2:default 0.75 ;
+    lv2:minimum 0.0  ;
+    lv2:maximum 1.0  ;
+] , 
+[
+    a lv2:InputPort, lv2:ControlPort ;
+    lv2:index 7;
     lv2:name "octaveSpread"  ;
     lv2:symbol "octaveSpread" ;
     lv2:default 1 ;
@@ -130,7 +133,7 @@ lv2:port
 ], 
 [
     a lv2:InputPort, lv2:ControlPort ;
-    lv2:index 7;
+    lv2:index 8;
     lv2:name "octaveMode"  ;
     lv2:symbol "octaveMode" ;
     lv2:default 0 ;
@@ -144,7 +147,7 @@ lv2:port
 ], 
 [
     a lv2:InputPort, lv2:ControlPort ;
-    lv2:index 8;
+    lv2:index 9;
     lv2:name "patternlength" ;
     lv2:symbol "patternlength" ;
     lv2:default 4 ;
@@ -162,7 +165,7 @@ lv2:port
 ] , 
 [
     a lv2:InputPort, lv2:ControlPort ;
-    lv2:index 9;
+    lv2:index 10;
     lv2:symbol "velocityNote1" ;
     lv2:name "velocityNote1" ;
     lv2:default 60 ;
@@ -171,7 +174,7 @@ lv2:port
 ] , 
 [
     a lv2:InputPort, lv2:ControlPort ;
-    lv2:index 10;
+    lv2:index 11;
     lv2:symbol "velocityNote2" ;
     lv2:name "velocityNote2" ;
     lv2:default 60 ;
@@ -180,7 +183,7 @@ lv2:port
 ] , 
 [
     a lv2:InputPort, lv2:ControlPort ;
-    lv2:index 11;
+    lv2:index 12;
     lv2:symbol "velocityNote3" ;
     lv2:name "velocityNote3" ;
     lv2:default 60 ;
@@ -189,7 +192,7 @@ lv2:port
 ], 
 [ 
     a lv2:InputPort, lv2:ControlPort ;
-    lv2:index 12;
+    lv2:index 13;
     lv2:symbol "velocityNote4" ;
     lv2:name "velocityNote4" ;
     lv2:default 60 ;
@@ -198,7 +201,7 @@ lv2:port
 ] ,
 [
     a lv2:InputPort, lv2:ControlPort ;
-    lv2:index 13;
+    lv2:index 14;
     lv2:symbol "velocityNote5" ;
     lv2:name "velocityNote5" ;
     lv2:default 60 ;
@@ -207,7 +210,7 @@ lv2:port
 ] , 
 [
     a lv2:InputPort, lv2:ControlPort ;
-    lv2:index 14;
+    lv2:index 15;
     lv2:symbol "velocityNote6" ;
     lv2:name "velocityNote6" ;
     lv2:default 60 ;
@@ -216,7 +219,7 @@ lv2:port
 ] , 
 [
     a lv2:InputPort, lv2:ControlPort ;
-    lv2:index 15;
+    lv2:index 16;
     lv2:symbol "velocityNote7" ;
     lv2:name "velocityNote7" ;
     lv2:default 60 ;
@@ -225,7 +228,7 @@ lv2:port
 ], 
 [ 
     a lv2:InputPort, lv2:ControlPort ;
-    lv2:index 16;
+    lv2:index 17;
     lv2:symbol "velocityNote8" ;
     lv2:name "velocityNote8" ;
     lv2:default 60 ;
