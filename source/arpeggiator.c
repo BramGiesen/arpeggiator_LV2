@@ -33,6 +33,7 @@ typedef enum {
     MIDI_IN = 0,
     MIDI_OUT,
     BPM_PORT,
+    ARP_MODE,
     LATCH_MODE,
     DIVISIONS_PORT,
     SYNC_PORT,
@@ -91,12 +92,13 @@ typedef struct {
     uint32_t  noteoff_buffer[NUM_VOICES][2];
     size_t    midi_index;
     size_t    active_notes_index;
-    size_t    note_played;
+    int       note_played;
     size_t    active_notes;
     size_t    pattern_index;
     int       octave_index;
     bool      triggered;
     bool      octave_up;
+    bool      arp_up;
     bool      latch_playing;
     float     speed; // Transport speed (usually 0=stop, 1=play)
     float     prevSpeed;
@@ -113,6 +115,7 @@ typedef struct {
     uint32_t  decay_len;
 
     float*    changeBpm;
+    float*    arp_mode;
     float*    latch_mode;
     float*    changedDiv;
     int*   	  sync;
@@ -234,6 +237,7 @@ handleNoteOn(Arpeggiator* self, const uint32_t outCapacity)
 {
     size_t searched_voices = 0;
     bool   note_found = false;
+    static int last_note_played = 0;
     while (!note_found && searched_voices < NUM_VOICES)
     {
         if (self->midi_notes[self->note_played] > 0
@@ -250,11 +254,24 @@ handleNoteOn(Arpeggiator* self, const uint32_t outCapacity)
             lv2_atom_sequence_append_event(self->MIDI_out, outCapacity, (LV2_Atom_Event*)&onMsg);
             self->noteoff_buffer[self->active_notes_index][0] = (uint32_t)midi_note;
             self->active_notes_index = (self->active_notes_index + 1) % NUM_VOICES;
-            self->note_played = (self->note_played + 1) % NUM_VOICES;
+            last_note_played = self->note_played;
+            //self->note_played = (self->note_played + 1) % NUM_VOICES;
             note_found = true;
-        } else {
-            self->note_played = (self->note_played + 1) % NUM_VOICES;
         }
+        if (*self->arp_mode == 0) {
+        self->note_played = (self->note_played + 1) % NUM_VOICES;
+        } else{
+            if (self->arp_up) {
+                self->note_played++;
+                if (self->note_played >= NUM_VOICES - 1) {
+                   self->arp_up = false; 
+                   self->note_played = (self->active_notes > 1) ? last_note_played - 1 : last_note_played;
+                }
+            } else {
+                self->note_played--;
+                self->arp_up = (self->note_played <= 0) ? true : false;
+            }
+        } 
         searched_voices++;
     }
 }
@@ -294,6 +311,9 @@ connect_port(LV2_Handle instance,
             break;
         case BPM_PORT:
             self->changeBpm = (float*)data;
+            break;
+        case ARP_MODE:
+            self->arp_mode = (float*)data;
             break;
         case LATCH_MODE:
             self->latch_mode = (float*)data;
@@ -416,6 +436,7 @@ instantiate(const LV2_Descriptor*     descriptor,
     self->midi_index = 0;
     self->triggered = false;
     self->octave_up = false;
+    self->arp_up    = true;
     self->active_notes_index = 0;
     self->note_played = 0;
     self->active_notes = 0;

@@ -10,7 +10,7 @@ ARPEGGIATOR_SITE = $($(PKG)_PKGDIR)/
 
 # even though this is a local build, we still need a version number
 # bump this number if you need to force a rebuild
-ARPEGGIATOR_VERSION = 3
+ARPEGGIATOR_VERSION = 1
 
 # dependencies (list of other buildroot packages, separated by space)
 ARPEGGIATOR_DEPENDENCIES =
