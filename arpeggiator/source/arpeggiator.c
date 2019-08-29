@@ -586,7 +586,6 @@ run(LV2_Handle instance, uint32_t n_samples)
     for (const LV2_Atom_Event* ev = lv2_atom_sequence_begin(&in->body);
             !lv2_atom_sequence_is_end(&in->body, in->atom.size, ev);
             ev = lv2_atom_sequence_next(ev)) {
-
         if (ev->body.type == uris->atom_Object ||
                 ev->body.type == uris->atom_Blank) {
             const LV2_Atom_Object* obj = (const LV2_Atom_Object*)&ev->body;
@@ -690,14 +689,12 @@ run(LV2_Handle instance, uint32_t n_samples)
     }
 
     if (*self->latch_mode == 0 && self->previous_latch == 1 && self->notes_pressed <= 0) {
-        debug_print("LATCH_MODE = OFF\n");
         for (unsigned i = 0; i < NUM_VOICES; i++) {
             self->midi_notes[i] = 200;
         }
     }
     if (*self->latch_mode != self->previous_latch) {
         self->previous_latch = *self->latch_mode;
-        debug_print("self->previous_latch = %f\n", self->previous_latch);
     }
 
     for(uint32_t i = 0; i < n_samples; i ++) {
