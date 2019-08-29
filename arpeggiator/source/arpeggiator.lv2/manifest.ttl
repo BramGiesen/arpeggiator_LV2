@@ -5,4 +5,3 @@
 	a lv2:Plugin ;
 	lv2:binary <arpeggiator.so> ;
 	rdfs:seeAlso <arpeggiator.ttl> .
-<http://bramgiesen.com/arpeggiator> rdfs:seeAlso <modgui.ttl> .

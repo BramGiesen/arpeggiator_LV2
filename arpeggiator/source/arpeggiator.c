@@ -41,15 +41,7 @@ typedef enum {
     NOTELENGTH,
     OCTAVESPREAD,
     OCTAVEMODE,
-    VELOCITYPATTERNLENGTH,
-    PATTERNVEL1,
-    PATTERNVEL2,
-    PATTERNVEL3,
-    PATTERNVEL4,
-    PATTERNVEL5,
-    PATTERNVEL6,
-    PATTERNVEL7,
-    PATTERNVEL8
+    VELOCITY
 } PortIndex;
 
 
@@ -96,7 +88,6 @@ typedef struct {
     int       note_played;
     size_t    active_notes;
     size_t    notes_pressed;
-    size_t    pattern_index;
     int       octave_index;
     bool      triggered;
     bool      octave_up;
@@ -107,7 +98,6 @@ typedef struct {
     float     prevSpeed;
     float     beatInMeasure;
     float     previous_latch;
-    float   **velocity_pattern[8];
 
     float 	  elapsed_len; // Frames since the start of the last click
     uint32_t  wave_offset; // Current play offset in the wave
@@ -125,15 +115,7 @@ typedef struct {
     float*    note_length;
     float*    octaveSpreadParam;
     float*    octaveModeParam;
-    float*    velocityPatternLengthParam;
-    float*    patternVel1Param;
-    float*    patternVel2Param;
-    float*    patternVel3Param;
-    float*    patternVel4Param;
-    float*    patternVel5Param;
-    float*    patternVel6Param;
-    float*    patternVel7Param;
-    float*    patternVel8Param;
+    float*    velocity;
 } Arpeggiator;
 
 static void 
@@ -288,8 +270,7 @@ handleNoteOn(Arpeggiator* self, const uint32_t outCapacity)
                 && self->midi_notes[self->note_played] < 128)
         {
             uint8_t octave = octaveHandler(self);
-            uint8_t velocity = (uint8_t)**self->velocity_pattern[self->pattern_index];
-            self->pattern_index = (self->pattern_index + 1) % (int)*self->velocityPatternLengthParam; 
+            uint8_t velocity = (uint8_t)*self->velocity;
 
             //create MIDI note on message
             uint8_t midi_note = self->midi_notes[self->note_played] + octave;
@@ -393,32 +374,8 @@ connect_port(LV2_Handle instance,
         case OCTAVEMODE:
             self->octaveModeParam  = (float*)data;
             break;
-        case VELOCITYPATTERNLENGTH:
-            self->velocityPatternLengthParam = (float*)data;
-            break;
-        case PATTERNVEL1:
-            self->patternVel1Param = (float*)data;
-            break;
-        case PATTERNVEL2:
-            self->patternVel2Param = (float*)data;
-            break;
-        case PATTERNVEL3:
-            self->patternVel3Param = (float*)data;
-            break;
-        case PATTERNVEL4:
-            self->patternVel4Param = (float*)data;
-            break;
-        case PATTERNVEL5:
-            self->patternVel5Param = (float*)data;
-            break;
-        case PATTERNVEL6:
-            self->patternVel6Param = (float*)data;
-            break;
-        case PATTERNVEL7:
-            self->patternVel7Param = (float*)data;
-            break;
-        case PATTERNVEL8:
-            self->patternVel8Param = (float*)data;
+        case VELOCITY:
+            self->velocity= (float*)data;
             break;
     }
 }
@@ -497,7 +454,6 @@ instantiate(const LV2_Descriptor*     descriptor,
     self->active_notes_index = 0;
     self->note_played = 0;
     self->active_notes = 0;
-    self->pattern_index = 0;
     self->previousOctaveMode = 0;
     self->octave_index = 0;
     self->previous_latch = 0;
@@ -514,15 +470,6 @@ instantiate(const LV2_Descriptor*     descriptor,
             self->noteoff_buffer[i][x] = 0;
         }
     }
-    
-    self->velocity_pattern[0]  = &self->patternVel1Param;
-    self->velocity_pattern[1]  = &self->patternVel2Param;
-    self->velocity_pattern[2]  = &self->patternVel3Param;
-    self->velocity_pattern[3]  = &self->patternVel4Param;
-    self->velocity_pattern[4]  = &self->patternVel5Param;
-    self->velocity_pattern[5]  = &self->patternVel6Param;
-    self->velocity_pattern[6]  = &self->patternVel7Param;
-    self->velocity_pattern[7]  = &self->patternVel8Param;
 
     return (LV2_Handle)self;
 }
@@ -625,7 +572,6 @@ run(LV2_Handle instance, uint32_t n_samples)
                     if (*self->sync == 0 && !self->latch_playing) {
                         self->pos = 0;
                         self->octave_index = 0;
-                        self->pattern_index = 0;
                         self->note_played = 0;
                         self->triggered = false;
                     }
