@@ -143,59 +143,45 @@ connect_port(LV2_Handle instance,
     switch ((PortIndex)port) {
         case MIDI_IN:
             self->MIDI_in    = (const LV2_Atom_Sequence*)data;
-            debug_print("CONNECT PORT 1\n");
             break;
         case MIDI_OUT:
             self->MIDI_out   = (LV2_Atom_Sequence*)data;
-            debug_print("CONNECT PORT 2\n");
             break;
         case CONTROL_PORT:
             self->control = (LV2_Atom_Sequence*)data;
-            debug_print("CONNECT PORT 3\n");
             break;
         case SYNC_MODE:
             self->sync = (float*)data;
-            debug_print("CONNECT PORT 4\n");
             break;
         case DIVISIONS_PORT:
             self->changedDiv = (float*)data;
-            debug_print("CONNECT PORT 5\n");
             break;
         case VELOCITYPATTERNLENGTH:
             self->velocityPatternLengthParam = (float*)data;
-            debug_print("CONNECT PORT 6\n");
             break;
         case PATTERNVEL1:
             self->patternVel1Param = (float*)data;
-            debug_print("CONNECT PORT 7\n");
             break;
         case PATTERNVEL2:
             self->patternVel2Param = (float*)data;
-            debug_print("CONNECT PORT 8\n");
             break;
         case PATTERNVEL3:
             self->patternVel3Param = (float*)data;
-            debug_print("CONNECT PORT 9\n");
             break;
         case PATTERNVEL4:
             self->patternVel4Param = (float*)data;
-            debug_print("CONNECT PORT 10\n");
             break;
         case PATTERNVEL5:
             self->patternVel5Param = (float*)data;
-            debug_print("CONNECT PORT 11\n");
             break;
         case PATTERNVEL6:
             self->patternVel6Param = (float*)data;
-            debug_print("CONNECT PORT 12\n");
             break;
         case PATTERNVEL7:
             self->patternVel7Param = (float*)data;
-            debug_print("CONNECT PORT 13\n");
             break;
         case PATTERNVEL8:
             self->patternVel8Param = (float*)data;
-            debug_print("CONNECT PORT 14\n");
             break;
     }
 }
@@ -362,7 +348,7 @@ run(LV2_Handle instance, uint32_t n_samples)
             {
                 case LV2_MIDI_MSG_NOTE_ON:
                     velocity = self->current_velocity;
-                    if (self->sync == 0) {
+                    if (*self->sync == 0) {
                         self->pattern_index = (self->pattern_index + 1) % (uint8_t)*self->velocityPatternLengthParam;
                     }
                 case LV2_MIDI_MSG_NOTE_OFF:
@@ -376,12 +362,6 @@ run(LV2_Handle instance, uint32_t n_samples)
     }
 
     for(uint32_t i = 0; i < n_samples; i ++) {
-        //map bpm to host or to bpm parameter
-        if (*self->sync == 0) {
-            self->bpm = *self->changeBpm;
-        } else {
-            self->bpm = self->bpm;
-        }
         //reset phase when playing starts or stops
         if (self->speed != self->prevSpeed) {
             self->pos = resetPhase(self);
@@ -407,6 +387,8 @@ run(LV2_Handle instance, uint32_t n_samples)
 
         if (*self->sync > 0) {
             if((self->pos < self->h_wavelength && !self->triggered)) {
+                debug_print("self->pos = %i\n", self->pos);
+                debug_print("self->pattern_index = %li\n", self->pattern_index);
                 self->pattern_index = (self->pattern_index + 1) % (uint8_t)*self->velocityPatternLengthParam;
                 self->triggered = true;
             } else if (self->pos > self->h_wavelength) {
@@ -414,9 +396,9 @@ run(LV2_Handle instance, uint32_t n_samples)
                 self->triggered = false;
             }
         }
-    }
     self->current_velocity = (uint8_t)**self->velocity_pattern[self->pattern_index]; 
     self->pos += 1;
+    }
 }
 
 
