@@ -421,11 +421,10 @@ instantiate(const LV2_Descriptor*     descriptor,
     lv2_log_logger_init (&self->logger, self->map, self->log);
 
     if (!self->map) {
-        lv2_log_error (&self->logger, "StepSeq.lv2 error: Host does not support urid:map\n");
+        lv2_log_error (&self->logger, "arpeggiator.lv2 error: Host does not support urid:map\n");
         free (self);
         return NULL;
     }
-
 
     // Map URIS
     ClockURIs* const    uris  = &self->uris;
