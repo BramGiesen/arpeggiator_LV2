@@ -23,8 +23,8 @@ A beat syncable arpeggiator with velocity patterns and octave spread.
 """ ;
     lv2:minorVersion 1 ;
     lv2:microVersion 0 ;
-    lv2:requiredFeature log:log ;
     lv2:requiredFeature urid:map ;
+    lv2:optionalFeature log:log ;
     lv2:optionalFeature lv2:hardRTCapable ;
 
 doap:developer [
