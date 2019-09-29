@@ -17,7 +17,7 @@
     lv2:UtilityPlugin ,
     lv2:Plugin ;
     doap:name "Arpeggiator" ;
-    doap:license "GPLv2+" ;
+    doap:license <https://spdx.org/licenses/GPL-2.0-or-later> ;
     rdfs:comment """
 A beat syncable arpeggiator with velocity patterns and octave spread.
 """ ;
@@ -28,9 +28,15 @@ A beat syncable arpeggiator with velocity patterns and octave spread.
     lv2:optionalFeature lv2:hardRTCapable ;
 
 doap:developer [
+    foaf:name "Bram Giesen" ;
+    foaf:homepage <https://bramgiesen.com> ;
+    foaf:mbox <mailto:bram@moddevices.com> ;
+    ];
+
+doap:maintainer [
     foaf:name "Bram Giesen";
-    foaf:homepage <>;
-    foaf:mbox <mailto:bram@moddevices.com>;
+    foaf:homepage <https://bramgiesen.com> ;
+    foaf:mbox <mailto:bram@moddevices.com> ;
     ];
 
 lv2:port
