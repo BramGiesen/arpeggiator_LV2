@@ -216,6 +216,18 @@ instantiate(const LV2_Descriptor*     descriptor,
         {
             self->map = (LV2_URID_Map*)features[i]->data;
         }
+        else if (!strcmp (features[i]->URI, LV2_LOG__log))
+        {
+            self->log = (LV2_Log_Log*)features[i]->data;
+        }
+    }
+
+    lv2_log_logger_init (&self->logger, self->map, self->log);
+
+    if (!self->map) {
+        lv2_log_error (&self->logger, "midi-pattern.lv2 error: Host does not support urid:map\n");
+        free (self);
+        return NULL;
     }
 
     // Map URIS
