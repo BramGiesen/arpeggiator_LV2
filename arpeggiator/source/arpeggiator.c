@@ -37,7 +37,7 @@ typedef enum {
     LATCH_MODE,
     DIVISIONS_PORT,
     SYNC_PORT,
-    CONTROL_PORT,   
+    CONTROL_PORT,
     NOTELENGTH,
     OCTAVESPREAD,
     OCTAVEMODE,
@@ -59,7 +59,6 @@ typedef struct {
 } ClockURIs;
 
 typedef struct {
-
     LV2_URID_Map*          map; // URID map feature
     LV2_Log_Log* 	       log;
     LV2_Log_Logger      logger; // Logger API
@@ -83,7 +82,6 @@ typedef struct {
     uint8_t   midi_notes[NUM_VOICES];
     uint8_t   previous_midinote;
     uint32_t  noteoff_buffer[NUM_VOICES][2];
-    size_t    midi_index;
     size_t    active_notes_index;
     int       note_played;
     size_t    active_notes;
@@ -98,14 +96,7 @@ typedef struct {
     float     prevSpeed;
     float     beatInMeasure;
     float     previous_latch;
-
-    float 	  elapsed_len; // Frames since the start of the last click
-    uint32_t  wave_offset; // Current play offset in the wave
     int       previousOctaveMode;
-    
-    // Envelope parameters
-    uint32_t  attack_len;
-    uint32_t  decay_len;
 
     float*    changeBpm;
     float*    arp_mode;
@@ -118,7 +109,7 @@ typedef struct {
     float*    velocity;
 } Arpeggiator;
 
-static void 
+static void
 swap(uint8_t *a, uint8_t *b)
 {
     int temp = *a;
@@ -145,7 +136,7 @@ quicksort(uint8_t arr[], int l, int r)
     {
         return;
     }
-    
+
     int pivot = arr[r];
 
     int cnt = l;
@@ -158,20 +149,20 @@ quicksort(uint8_t arr[], int l, int r)
             cnt++;
         }
     }
-    quicksort(arr, l, cnt-2); 
-    quicksort(arr, cnt, r);   
+    quicksort(arr, l, cnt-2);
+    quicksort(arr, cnt, r);
 }
 
 
-static uint8_t 
+static uint8_t
 octaveHandler(Arpeggiator* self)
 {
-    uint8_t octave = 0; 
+    uint8_t octave = 0;
 
     int octaveMode = *self->octaveModeParam;
 
     if (octaveMode != self->previousOctaveMode) {
-        switch (octaveMode) 
+        switch (octaveMode)
         {
             case 0:
                 self->octave_index = self->note_played % (int)*self->octaveSpreadParam;
@@ -199,16 +190,16 @@ octaveHandler(Arpeggiator* self)
         switch (octaveMode)
         {
             case 0:
-                octave = 12 * self->octave_index; 
+                octave = 12 * self->octave_index;
                 self->octave_index = (self->octave_index + 1) % (int)*self->octaveSpreadParam;
                 break;
             case 1:
-                octave = 12 * self->octave_index; 
+                octave = 12 * self->octave_index;
                 self->octave_index--;
                 self->octave_index = (self->octave_index < 0) ? (int)*self->octaveSpreadParam - 1 : self->octave_index;
                 break;
             case 2:
-                octave = 12 * self->octave_index; 
+                octave = 12 * self->octave_index;
 
                 if (self->octave_up) {
                     self->octave_index++;
@@ -219,7 +210,7 @@ octaveHandler(Arpeggiator* self)
                 }
                 break;
             case 3:
-                octave = 12 * self->octave_index; 
+                octave = 12 * self->octave_index;
                 if (!self->octave_up) {
                     self->octave_index--;
                     self->octave_up = (self->octave_index <= 0) ? true : false;
@@ -261,7 +252,7 @@ handleNoteOn(Arpeggiator* self, const uint32_t outCapacity)
 {
     size_t searched_voices = 0;
     bool   note_found = false;
-    static int last_note_played = 0;
+
     while (!note_found && searched_voices < NUM_VOICES)
     {
         self->note_played = (self->note_played < 0) ? 0 : self->note_played;
@@ -280,7 +271,6 @@ handleNoteOn(Arpeggiator* self, const uint32_t outCapacity)
             lv2_atom_sequence_append_event(self->MIDI_out, outCapacity, (LV2_Atom_Event*)&onMsg);
             self->noteoff_buffer[self->active_notes_index][0] = (uint32_t)midi_note;
             self->active_notes_index = (self->active_notes_index + 1) % NUM_VOICES;
-            last_note_played = self->note_played;
             note_found = true;
         }
         if (*self->arp_mode == 0 || (*self->arp_mode == 2 && self->active_notes < 3)
@@ -296,7 +286,7 @@ handleNoteOn(Arpeggiator* self, const uint32_t outCapacity)
             if (self->arp_up) {
                 self->note_played++;
                 if (self->note_played >= self->active_notes) {
-                   self->arp_up = false; 
+                   self->arp_up = false;
                    if (*self->arp_mode != 3) {
                        self->note_played = (self->active_notes > 1) ? self->note_played - 2 : self->note_played;
                    }
@@ -309,7 +299,7 @@ handleNoteOn(Arpeggiator* self, const uint32_t outCapacity)
                     self->arp_up = (self->note_played < 0) ? true : false;
                 }
             }
-        } 
+        }
         searched_voices++;
     }
 }
@@ -443,10 +433,9 @@ instantiate(const LV2_Descriptor*     descriptor,
 
     debug_print("DEBUGING");
     self->samplerate = rate;
-    self->prevSync   = 0; 
+    self->prevSync   = 0;
     self->beatInMeasure = 0;
     self->prevSpeed = 0;
-    self->midi_index = 0;
     self->triggered = false;
     self->octave_up = false;
     self->arp_up    = true;
@@ -501,18 +490,13 @@ update_position(Arpeggiator* self, const LV2_Atom_Object* obj)
     if (beat && beat->type == uris->atom_Float)
     {
         // Received a beat position, synchronise
-        // This hard sync may cause clicks, a real plugin would be more graceful
-        const float frames_per_beat = (self->samplerate * (60.0f / (self->bpm * self->divisions)));
-        const float bar_beats       = (((LV2_Atom_Float*)beat)->body * self->divisions);
-        const float beat_beats      = bar_beats - floorf(bar_beats);
-        self->beatInMeasure         = ((LV2_Atom_Float*)beat)->body; 
-        self->elapsed_len           = beat_beats * frames_per_beat;
+        self->beatInMeasure         = ((LV2_Atom_Float*)beat)->body;
     }
 }
 
 
 
-static uint32_t 
+static uint32_t
 resetPhase(Arpeggiator* self)
 {
     uint32_t pos = (uint32_t)fmod(self->samplerate * (60.0f / self->bpm) * self->beatInMeasure, (self->samplerate * (60.0f / (self->bpm * (self->divisions / 2.0f)))));
@@ -556,8 +540,7 @@ run(LV2_Handle instance, uint32_t n_samples)
         {
             const uint8_t* const msg = (const uint8_t*)(ev + 1);
 
-            const uint8_t channel = msg[0] & 0x0F;
-            const uint8_t status  = msg[0] & 0xF0;
+            const uint8_t status = msg[0] & 0xF0;
 
             uint8_t midi_note = msg[1];
             uint8_t note_to_find;
@@ -591,7 +574,7 @@ run(LV2_Handle instance, uint32_t n_samples)
                 voice_found = false;
                 while (find_free_voice < NUM_VOICES && !voice_found)
                 {
-                    if (self->midi_notes[find_free_voice] == 200) {  
+                    if (self->midi_notes[find_free_voice] == 200) {
                         self->midi_notes[find_free_voice] = midi_note;
                         voice_found = true;
                     }
@@ -606,15 +589,15 @@ run(LV2_Handle instance, uint32_t n_samples)
                 break;
             case LV2_MIDI_MSG_NOTE_OFF:
                 self->notes_pressed--;
-                if (!self->latch_playing) 
+                if (!self->latch_playing)
                     self->active_notes = self->notes_pressed;
                 note_to_find = midi_note;
                 search_note = 0;
                 if (*self->latch_mode == 0) {
                     self->latch_playing = false;
-                    while (search_note < NUM_VOICES) 
+                    while (search_note < NUM_VOICES)
                     {
-                        if (self->midi_notes[search_note] == note_to_find) 
+                        if (self->midi_notes[search_note] == note_to_find)
                         {
                             self->midi_notes[search_note] = 200;
                             search_note = NUM_VOICES;
@@ -629,8 +612,6 @@ run(LV2_Handle instance, uint32_t n_samples)
                 break;
             }
         }
-        //lv2_atom_sequence_append_event(self->MIDI_out,
-        //        out_capacity, ev);
     }
 
     if (*self->latch_mode == 0 && self->previous_latch == 1 && self->notes_pressed <= 0) {
