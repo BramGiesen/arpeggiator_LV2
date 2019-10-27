@@ -47,7 +47,7 @@ lv2:port
     lv2:index 0;
     lv2:symbol "MIDI_in" ;
     lv2:name "MIDI_in" ;
-], 
+],
 [
     a lv2:OutputPort , atom:AtomPort ;
     atom:bufferType atom:Sequence ;
@@ -55,7 +55,7 @@ lv2:port
     lv2:index 1;
     lv2:symbol "MIDI_out" ;
     lv2:name "MIDI_out" ;
-], 
+],
 [
     a lv2:InputPort ,lv2:ControlPort ;
     lv2:index 2 ;
@@ -91,7 +91,7 @@ lv2:port
     lv2:minimum 0.0 ;
     lv2:maximum 1 ;
     lv2:portProperty lv2:toggled;
-], 
+],
 [
     a lv2:InputPort ,lv2:ControlPort ;
     lv2:index 5 ;
@@ -147,7 +147,7 @@ lv2:port
     lv2:minimum 0.1  ;
     lv2:maximum 1.0  ;
 ]
-, 
+,
 [
     a lv2:InputPort, lv2:ControlPort ;
     lv2:index 9;
@@ -162,7 +162,7 @@ lv2:port
     lv2:scalePoint [ rdfs:label "3 Octaves" ; rdf:value 3 ] ;
     lv2:scalePoint [ rdfs:label "4 Octaves" ; rdf:value 4 ] ;
 ]
-, 
+,
 [
     a lv2:InputPort, lv2:ControlPort ;
     lv2:index 10;
@@ -177,7 +177,7 @@ lv2:port
     lv2:scalePoint [ rdfs:label "Up-Down" ; rdf:value 2 ] ;
     lv2:scalePoint [ rdfs:label "Down-Up" ; rdf:value 3 ] ;
 ]
-, 
+,
 [
     a lv2:InputPort, lv2:ControlPort ;
     lv2:index 11;

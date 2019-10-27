@@ -94,8 +94,10 @@ typedef struct {
     bool      first_note;
     float     speed; // Transport speed (usually 0=stop, 1=play)
     float     prevSpeed;
-    float     beatInMeasure;
+    float     beat_in_measure;
+    float     previous_beat_in_measure;
     float     previous_latch;
+    float     time_position;
     int       previousOctaveMode;
 
     float*    changeBpm;
@@ -109,6 +111,7 @@ typedef struct {
     float*    velocity;
 } Arpeggiator;
 
+
 static void
 swap(uint8_t *a, uint8_t *b)
 {
@@ -117,16 +120,6 @@ swap(uint8_t *a, uint8_t *b)
     *b = temp;
 }
 
-static void
-printArray(int arr[], int size)
-{
-    for (int i = 0; i < size; i++)
-    {
-        printf("%d ", arr[i]);
-    }
-
-    printf("\n");
-}
 
 //got the code for the quick sort algorithm here https://medium.com/human-in-a-machine-world/quicksort-the-best-sorting-algorithm-6ab461b5a9d0
 static void
@@ -174,7 +167,7 @@ octaveHandler(Arpeggiator* self)
             case 2:
                 self->octave_index = self->note_played % (int)(*self->octaveSpreadParam * 2);
                 if (self->octave_index > (int)*self->octaveSpreadParam) {
-                    self->octave_index = abs((int)*self->octaveSpreadParam - (self->octave_index - (int)*self->octaveSpreadParam)) % (int)*self->octaveSpreadParam; 
+                    self->octave_index = abs((int)*self->octaveSpreadParam - (self->octave_index - (int)*self->octaveSpreadParam)) % (int)*self->octaveSpreadParam;
                 }
                 self->octave_up = !self->octave_up;
                 break;
@@ -434,7 +427,8 @@ instantiate(const LV2_Descriptor*     descriptor,
     debug_print("DEBUGING");
     self->samplerate = rate;
     self->prevSync   = 0;
-    self->beatInMeasure = 0;
+    self->beat_in_measure = 0.0;
+    self->previous_beat_in_measure = 0.0;
     self->prevSpeed = 0;
     self->triggered = false;
     self->octave_up = false;
@@ -490,7 +484,7 @@ update_position(Arpeggiator* self, const LV2_Atom_Object* obj)
     if (beat && beat->type == uris->atom_Float)
     {
         // Received a beat position, synchronise
-        self->beatInMeasure         = ((LV2_Atom_Float*)beat)->body;
+        self->beat_in_measure = ((LV2_Atom_Float*)beat)->body;
     }
 }
 
@@ -499,7 +493,7 @@ update_position(Arpeggiator* self, const LV2_Atom_Object* obj)
 static uint32_t
 resetPhase(Arpeggiator* self)
 {
-    uint32_t pos = (uint32_t)fmod(self->samplerate * (60.0f / self->bpm) * self->beatInMeasure, (self->samplerate * (60.0f / (self->bpm * (self->divisions / 2.0f)))));
+    uint32_t pos = (uint32_t)fmod(self->samplerate * (60.0f / self->bpm) * self->beat_in_measure, (self->samplerate * (60.0f / (self->bpm * (self->divisions / 2.0f)))));
 
     return pos;
 }
@@ -524,6 +518,8 @@ run(LV2_Handle instance, uint32_t n_samples)
             }
         }
     }
+
+    float current_beat_pos = self->beat_in_measure;
 
     self->MIDI_out->atom.type = self->MIDI_in->atom.type;
 
@@ -551,7 +547,7 @@ run(LV2_Handle instance, uint32_t n_samples)
             {
             case LV2_MIDI_MSG_NOTE_ON:
                 if (self->notes_pressed == 0) {
-                    if (*self->sync == 0 && !self->latch_playing) {
+                    if ((*self->sync >= 0 ) && !self->latch_playing) { //TODO check if there needs to be an exception when using sync
                         self->pos = 0;
                         self->octave_index = 0;
                         self->note_played = 0;
@@ -617,6 +613,7 @@ run(LV2_Handle instance, uint32_t n_samples)
     if (*self->latch_mode == 0 && self->previous_latch == 1 && self->notes_pressed <= 0) {
         for (unsigned i = 0; i < NUM_VOICES; i++) {
             self->midi_notes[i] = 200;
+            self->note_played = 0;
         }
     }
     if (*self->latch_mode != self->previous_latch) {
@@ -633,6 +630,13 @@ run(LV2_Handle instance, uint32_t n_samples)
         //reset phase when playing starts or stops
         if (self->speed != self->prevSpeed) {
             self->pos = resetPhase(self);
+            if (self->speed == 0) {
+                self->notes_pressed = 0;
+                self->active_notes = 0;
+                for (unsigned i = 0; i < NUM_VOICES; i++) {
+                    self->midi_notes[i] = 200;
+                }
+            }
             self->prevSpeed = self->speed;
         }
         //reset phase when sync is turned on
@@ -665,6 +669,7 @@ run(LV2_Handle instance, uint32_t n_samples)
         handleNoteOff(self, out_capacity);
         self->pos += 1;
     }
+    self->previous_beat_in_measure = current_beat_pos;
 }
 
 
@@ -706,4 +711,3 @@ lv2_descriptor(uint32_t index)
         default: return NULL;
     }
 }
-
