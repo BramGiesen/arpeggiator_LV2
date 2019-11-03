@@ -47,7 +47,7 @@ lv2:port
     lv2:index 0;
     lv2:symbol "MIDI_in" ;
     lv2:name "MIDI_in" ;
-], 
+],
 [
     a lv2:OutputPort , atom:AtomPort ;
     atom:bufferType atom:Sequence ;
@@ -55,19 +55,25 @@ lv2:port
     lv2:index 1;
     lv2:symbol "MIDI_out" ;
     lv2:name "MIDI_out" ;
-], 
+],
+[
+    a lv2:InputPort, lv2:CVPort;
+    lv2:index 2;
+    lv2:symbol "retrigger";
+    lv2:name "Retrigger";
+],
 [
     a lv2:InputPort, atom:AtomPort ;
     atom:bufferType atom:Sequence ;
     atom:supports time:Position ;
-    lv2:index 2 ;
+    lv2:index 3;
     lv2:symbol "control" ;
     lv2:name "Control" ;
-] 
+]
 ,
 [
     a lv2:InputPort, lv2:ControlPort;
-    lv2:index 3;
+    lv2:index 4;
     lv2:symbol "sync";
     lv2:name "Sync";
     lv2:minimum 0;
@@ -80,7 +86,7 @@ lv2:port
 ,
 [
     a lv2:InputPort ,lv2:ControlPort ;
-    lv2:index 4 ;
+    lv2:index 5;
     lv2:symbol "Divisions" ;
     lv2:name "Divisions";
     lv2:default 8 ;
@@ -104,7 +110,7 @@ lv2:port
 ,
 [
     a lv2:InputPort, lv2:ControlPort ;
-    lv2:index 5;
+    lv2:index 6;
     lv2:name "patternlength" ;
     lv2:symbol "patternlength" ;
     lv2:default 4 ;
@@ -122,7 +128,7 @@ lv2:port
 ] , 
 [
     a lv2:InputPort, lv2:ControlPort ;
-    lv2:index 6;
+    lv2:index 7;
     lv2:symbol "velocityNote1" ;
     lv2:name "velocityNote1" ;
     lv2:default 60 ;
@@ -131,7 +137,7 @@ lv2:port
 ] , 
 [
     a lv2:InputPort, lv2:ControlPort ;
-    lv2:index 7;
+    lv2:index 8;
     lv2:symbol "velocityNote2" ;
     lv2:name "velocityNote2" ;
     lv2:default 60 ;
@@ -140,7 +146,7 @@ lv2:port
 ] , 
 [
     a lv2:InputPort, lv2:ControlPort ;
-    lv2:index 8;
+    lv2:index 9;
     lv2:symbol "velocityNote3" ;
     lv2:name "velocityNote3" ;
     lv2:default 60 ;
@@ -149,7 +155,7 @@ lv2:port
 ], 
 [ 
     a lv2:InputPort, lv2:ControlPort ;
-    lv2:index 9;
+    lv2:index 10;
     lv2:symbol "velocityNote4" ;
     lv2:name "velocityNote4" ;
     lv2:default 60 ;
@@ -158,7 +164,7 @@ lv2:port
 ] ,
 [
     a lv2:InputPort, lv2:ControlPort ;
-    lv2:index 10;
+    lv2:index 11;
     lv2:symbol "velocityNote5" ;
     lv2:name "velocityNote5" ;
     lv2:default 60 ;
@@ -167,7 +173,7 @@ lv2:port
 ] , 
 [
     a lv2:InputPort, lv2:ControlPort ;
-    lv2:index 11;
+    lv2:index 12;
     lv2:symbol "velocityNote6" ;
     lv2:name "velocityNote6" ;
     lv2:default 60 ;
@@ -176,7 +182,7 @@ lv2:port
 ] , 
 [
     a lv2:InputPort, lv2:ControlPort ;
-    lv2:index 12;
+    lv2:index 13;
     lv2:symbol "velocityNote7" ;
     lv2:name "velocityNote7" ;
     lv2:default 60 ;
@@ -185,7 +191,7 @@ lv2:port
 ], 
 [ 
     a lv2:InputPort, lv2:ControlPort ;
-    lv2:index 13;
+    lv2:index 14;
     lv2:symbol "velocityNote8" ;
     lv2:name "velocityNote8" ;
     lv2:default 60 ;

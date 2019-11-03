@@ -6,8 +6,8 @@
         modgui:resourcesDirectory <modgui> ;
         modgui:iconTemplate <modgui/icon-arp.html> ;
         modgui:stylesheet <modgui/stylesheet-arp.css> ;
-        modgui:screenshot <modgui/screenshot-arp.png> ;
-        modgui:thumbnail <modgui/thumbnail-arp.png> ;
+        modgui:screenshot <modgui/midi-pattern_ss.png> ;
+        modgui:thumbnail <modgui/midi-pattern_tn.png> ;
         modgui:brand "BG" ;
         modgui:label "MIDI Pattern" ;
         modgui:model "boxy" ;

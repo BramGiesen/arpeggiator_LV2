@@ -6,8 +6,8 @@
         modgui:resourcesDirectory <modgui> ;
         modgui:iconTemplate <modgui/icon-arpeggiator.html> ;
         modgui:stylesheet <modgui/stylesheet-arpeggiator.css> ;
-        modgui:screenshot <modgui/screenshot-arpeggiator.png> ;
-        modgui:thumbnail <modgui/thumbnail-arpeggiator.png> ;
+        modgui:screenshot <modgui/arpeggiator_ss.png> ;
+        modgui:thumbnail <modgui/arpeggiator_tn.png> ;
         modgui:brand "BG" ;
         modgui:label "Arpeggiator" ;
         modgui:model "boxy" ;

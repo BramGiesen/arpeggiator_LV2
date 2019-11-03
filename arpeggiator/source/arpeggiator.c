@@ -32,6 +32,7 @@ typedef struct {
 typedef enum {
     MIDI_IN = 0,
     MIDI_OUT,
+    CV_GATE,
     BPM_PORT,
     ARP_MODE,
     LATCH_MODE,
@@ -73,7 +74,7 @@ typedef struct {
 
     float     divisions;
     double    samplerate;
-    int       prevSync;
+    int       prev_sync;
     LV2_Atom_Sequence* control;
     // Variables to keep track of the tempo information sent by the host
     float     bpm; // Beats per minute (tempo)
@@ -94,13 +95,13 @@ typedef struct {
     bool      latch_playing;
     bool      first_note;
     float     speed; // Transport speed (usually 0=stop, 1=play)
-    float     prevSpeed;
     float     beat_in_measure;
     float     previous_beat_in_measure;
     float     previous_latch;
     float     time_position;
-    int       previousOctaveMode;
+    int       previous_octave_mode;
 
+    float*    cv_gate;
     float*    changeBpm;
     float*    arp_mode;
     float*    latch_mode;
@@ -156,7 +157,7 @@ octaveHandler(Arpeggiator* self)
 
     int octaveMode = *self->octaveModeParam;
 
-    if (octaveMode != self->previousOctaveMode) {
+    if (octaveMode != self->previous_octave_mode) {
         switch (octaveMode)
         {
             case 0:
@@ -178,7 +179,7 @@ octaveHandler(Arpeggiator* self)
                 self->octave_up = !self->octave_up;
                 break;
         }
-        self->previousOctaveMode = octaveMode;
+        self->previous_octave_mode = octaveMode;
     }
 
     if (*self->octaveSpreadParam > 1) {
@@ -332,6 +333,9 @@ connect_port(LV2_Handle instance,
         case MIDI_OUT:
             self->MIDI_out   = (LV2_Atom_Sequence*)data;
             break;
+        case CV_GATE:
+            self->cv_gate = (float*)data;
+            break;
         case BPM_PORT:
             self->changeBpm = (float*)data;
             break;
@@ -431,17 +435,16 @@ instantiate(const LV2_Descriptor*     descriptor,
 
     debug_print("DEBUGING");
     self->samplerate = rate;
-    self->prevSync   = 0;
+    self->prev_sync   = 0;
     self->beat_in_measure = 0.0;
     self->previous_beat_in_measure = 0.0;
-    self->prevSpeed = 0;
     self->triggered = false;
     self->octave_up = false;
     self->arp_up    = true;
     self->active_notes_index = 0;
     self->note_played = 0;
     self->active_notes = 0;
-    self->previousOctaveMode = 0;
+    self->previous_octave_mode = 0;
     self->octave_index = 0;
     self->previous_latch = 0;
     self->previous_midinote = 0;
@@ -536,6 +539,7 @@ run(LV2_Handle instance, uint32_t n_samples)
     // Read incoming events
     LV2_ATOM_SEQUENCE_FOREACH(self->MIDI_in, ev)
     {
+        debug_print("NEW MESSAGE\n");
         size_t search_note;
         if (ev->body.type == self->urid_midiEvent)
         {
@@ -618,7 +622,6 @@ run(LV2_Handle instance, uint32_t n_samples)
                 }
             }
             else {
-
                 //send MIDI message through
                 lv2_atom_sequence_append_event(self->MIDI_out, out_capacity, ev);
 
@@ -643,27 +646,21 @@ run(LV2_Handle instance, uint32_t n_samples)
         } else {
             self->bpm = self->bpm;
         }
-        //reset phase when playing starts or stops
-        if (self->speed != self->prevSpeed) {
-            self->pos = resetPhase(self);
-            if (self->speed == 0) {
-                self->notes_pressed = 0;
-                self->active_notes = 0;
-                for (unsigned i = 0; i < NUM_VOICES; i++) {
-                    self->midi_notes[i] = 200;
-                }
-            }
-            self->prevSpeed = self->speed;
-        }
         //reset phase when sync is turned on
-        if (*self->sync != self->prevSync) {
+        if (*self->sync != self->prev_sync) {
             self->pos = resetPhase(self);
-            self->prevSync = *self->sync;
+            self->prev_sync = *self->sync;
         }
         //reset phase when there is a new division
         if (self->divisions != *self->changedDiv) {
             self->divisions = *self->changedDiv;
             self->pos = resetPhase(self);
+        }
+        //set CV gate
+        if (self->notes_pressed > 0) {
+            self->cv_gate[i] = 1.0;
+        } else {
+            self->cv_gate[i] = 0.0;
         }
 
         self->period = (uint32_t)(self->samplerate * (60.0f / (self->bpm * (self->divisions / 2.0f))));
