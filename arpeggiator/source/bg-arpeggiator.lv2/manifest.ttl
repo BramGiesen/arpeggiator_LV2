@@ -3,6 +3,6 @@
 
 <http://bramgiesen.com/arpeggiator>
 	a lv2:Plugin ;
-	lv2:binary <arpeggiator.so> ;
-	rdfs:seeAlso <arpeggiator.ttl> .
+	lv2:binary <bg-arpeggiator.so> ;
+	rdfs:seeAlso <bg-arpeggiator.ttl> .
 <http://bramgiesen.com/arpeggiator> rdfs:seeAlso <modgui.ttl> .

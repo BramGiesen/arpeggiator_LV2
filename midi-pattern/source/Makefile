@@ -4,7 +4,7 @@
 
 include Makefile.mk
 
-NAME = midi-pattern
+NAME = bg-midi-pattern
 
 # --------------------------------------------------------------
 # Installation path
