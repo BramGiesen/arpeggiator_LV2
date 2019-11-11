@@ -78,6 +78,8 @@ typedef struct {
     LV2_Atom_Sequence* control;
     // Variables to keep track of the tempo information sent by the host
     float     bpm; // Beats per minute (tempo)
+    float     host_bpm;
+    float     previous_bpm;
     uint32_t  pos;
     uint32_t  period;
     uint32_t  h_wavelength;
@@ -434,6 +436,7 @@ instantiate(const LV2_Descriptor*     descriptor,
     uris->time_speed          = map->map(map->handle, LV2_TIME__speed);
 
     debug_print("DEBUGING");
+    self->bpm = 120.0;
     self->samplerate = rate;
     self->prev_sync   = 0;
     self->beat_in_measure = 0.0;
@@ -482,7 +485,7 @@ update_position(Arpeggiator* self, const LV2_Atom_Object* obj)
     if (bpm && bpm->type == uris->atom_Float)
     {
         // Tempo changed, update BPM
-        self->bpm = ((LV2_Atom_Float*)bpm)->body;
+        self->host_bpm = ((LV2_Atom_Float*)bpm)->body;
     }
     if (speed && speed->type == uris->atom_Float)
     {
@@ -644,7 +647,12 @@ run(LV2_Handle instance, uint32_t n_samples)
         if (*self->sync == 0) {
             self->bpm = *self->changeBpm;
         } else {
-            self->bpm = self->bpm;
+            self->bpm = self->host_bpm;
+        }
+        //resync phase when tempo is changed
+        if (self->bpm != self->previous_bpm && *self->sync > 0) {
+            self->pos = resetPhase(self);
+            self->previous_bpm = self->bpm;
         }
         //reset phase when sync is turned on
         if (*self->sync != self->prev_sync) {
