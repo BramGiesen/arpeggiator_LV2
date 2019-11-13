@@ -43,7 +43,8 @@ typedef enum {
     PATTERNVEL5            = 10,
     PATTERNVEL6            = 11,
     PATTERNVEL7            = 12,
-    PATTERNVEL8            = 13
+    PATTERNVEL8            = 13,
+    PLUGIN_ENABLED         = 14
 } PortIndex;
 
 
@@ -112,6 +113,7 @@ typedef struct {
     float*    pattern_vel6_param;
     float*    pattern_vel7_param;
     float*    pattern_vel8_param;
+    float*    plugin_enabled;
 } MidiPattern;
 
 
@@ -183,6 +185,9 @@ connect_port(LV2_Handle instance,
             break;
         case PATTERNVEL8:
             self->pattern_vel8_param = (float*)data;
+            break;
+        case PLUGIN_ENABLED:
+            self->plugin_enabled = (float*)data;
             break;
     }
 }
@@ -353,7 +358,13 @@ run(LV2_Handle instance, uint32_t n_samples)
             switch (status)
             {
                 case LV2_MIDI_MSG_NOTE_ON:
-                    velocity = self->current_velocity;
+
+                    if (*self->plugin_enabled == 1)
+                        velocity = self->current_velocity;
+                    else 
+                        velocity = msg[2];
+
+                    debug_print("message[2] = %i\n", msg[2]);
                     if (*self->sync == 0) {
                         self->pattern_index = (self->pattern_index + 1) % (uint8_t)*self->velocity_pattern_length_param;
                     }
