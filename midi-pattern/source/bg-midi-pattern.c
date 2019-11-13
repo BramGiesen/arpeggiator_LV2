@@ -33,18 +33,17 @@ typedef enum {
     MIDI_IN                = 0,
     MIDI_OUT               = 1,
     CV_RETRIGGER           = 2,
-    CONTROL_PORT           = 3,
-    SYNC_MODE              = 4,
-    DIVISIONS_PORT         = 5,
-    VELOCITYPATTERNLENGTH  = 6,
-    PATTERNVEL1            = 7,
-    PATTERNVEL2            = 8,
-    PATTERNVEL3            = 9,
-    PATTERNVEL4            = 10,
-    PATTERNVEL5            = 11,
-    PATTERNVEL6            = 12,
-    PATTERNVEL7            = 13,
-    PATTERNVEL8            = 14
+    SYNC_MODE              = 3,
+    DIVISIONS_PORT         = 4,
+    VELOCITYPATTERNLENGTH  = 5,
+    PATTERNVEL1            = 6,
+    PATTERNVEL2            = 7,
+    PATTERNVEL3            = 8,
+    PATTERNVEL4            = 9,
+    PATTERNVEL5            = 10,
+    PATTERNVEL6            = 11,
+    PATTERNVEL7            = 12,
+    PATTERNVEL8            = 13
 } PortIndex;
 
 
@@ -77,7 +76,7 @@ typedef struct {
     float     divisions;
     double    samplerate;
     int       prevSync;
-    LV2_Atom_Sequence* control;
+
     // Variables to keep track of the tempo information sent by the host
     float     bpm; // Beats per minute (tempo)
     uint32_t  pos;
@@ -148,9 +147,6 @@ connect_port(LV2_Handle instance,
             break;
         case MIDI_OUT:
             self->MIDI_out   = (LV2_Atom_Sequence*)data;
-            break;
-        case CONTROL_PORT:
-            self->control = (LV2_Atom_Sequence*)data;
             break;
         case CV_RETRIGGER:
             self->cv_retrigger = (float*)data;
@@ -252,7 +248,7 @@ instantiate(const LV2_Descriptor*     descriptor,
 
     debug_print("DEBUGING");
     self->samplerate = rate;
-    self->prevSync   = 0; 
+    self->prevSync   = 0;
     self->beat_in_measure = 0;
     self->prev_speed = 0;
     self->pattern_index = 0;
@@ -312,7 +308,7 @@ update_position(MidiPattern* self, const LV2_Atom_Object* obj)
 
 
 
-static uint32_t 
+static uint32_t
 resetPhase(MidiPattern* self)
 {
     uint32_t pos = (uint32_t)fmod(self->samplerate * (60.0f / self->bpm) * self->beat_in_measure, (self->samplerate * (60.0f / (self->bpm * (self->divisions / 2.0f)))));
@@ -325,21 +321,7 @@ static void
 run(LV2_Handle instance, uint32_t n_samples)
 {
     MidiPattern* self = (MidiPattern*)instance;
-
     const ClockURIs* uris = &self->uris;
-    const LV2_Atom_Sequence* in = self->control;
-
-    for (const LV2_Atom_Event* ev = lv2_atom_sequence_begin(&in->body);
-            !lv2_atom_sequence_is_end(&in->body, in->atom.size, ev);
-            ev = lv2_atom_sequence_next(ev)) {
-        if (ev->body.type == uris->atom_Object ||
-                ev->body.type == uris->atom_Blank) {
-            const LV2_Atom_Object* obj = (const LV2_Atom_Object*)&ev->body;
-            if (obj->body.otype == uris->time_Position) {
-                update_position(self, obj);
-            }
-        }
-    }
 
     self->MIDI_out->atom.type = self->MIDI_in->atom.type;
 
@@ -351,11 +333,18 @@ run(LV2_Handle instance, uint32_t n_samples)
     // Read incoming events
     LV2_ATOM_SEQUENCE_FOREACH(self->MIDI_in, ev)
     {
-        if (ev->body.type == self->urid_midiEvent)
+        if (ev->body.type == uris->atom_Object ||
+                ev->body.type == uris->atom_Blank) {
+            const LV2_Atom_Object* obj = (const LV2_Atom_Object*)&ev->body;
+            if (obj->body.otype == uris->time_Position) {
+                update_position(self, obj);
+            }
+        }
+        else if (ev->body.type == self->urid_midiEvent)
         {
             const uint8_t* const msg = (const uint8_t*)(ev + 1);
 
-            const uint8_t channel = msg[0] & 0x0F;
+            //const uint8_t channel = msg[0] & 0x0F;
             const uint8_t status  = msg[0] & 0xF0;
 
             uint8_t midi_note = msg[1];
@@ -407,7 +396,7 @@ run(LV2_Handle instance, uint32_t n_samples)
 
         if(self->pos >= self->period && i < n_samples) {
             self->pos = 0;
-        } 
+        }
 
         if (*self->sync > 0) {
             if((self->pos < self->h_wavelength && !self->triggered)) {
@@ -418,7 +407,7 @@ run(LV2_Handle instance, uint32_t n_samples)
                 self->triggered = false;
             }
         }
-    self->current_velocity = (uint8_t)**self->velocity_pattern[self->pattern_index]; 
+    self->current_velocity = (uint8_t)**self->velocity_pattern[self->pattern_index];
     self->pos += 1;
     }
 }

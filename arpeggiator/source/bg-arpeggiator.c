@@ -38,7 +38,6 @@ typedef enum {
     LATCH_MODE,
     DIVISIONS_PORT,
     SYNC_PORT,
-    CONTROL_PORT,
     NOTELENGTH,
     OCTAVESPREAD,
     OCTAVEMODE,
@@ -75,7 +74,6 @@ typedef struct {
     float     divisions;
     double    samplerate;
     int       prev_sync;
-    LV2_Atom_Sequence* control;
     // Variables to keep track of the tempo information sent by the host
     float     bpm; // Beats per minute (tempo)
     float     host_bpm;
@@ -353,9 +351,6 @@ connect_port(LV2_Handle instance,
         case SYNC_PORT:
             self->sync = (float*)data;
             break;
-        case CONTROL_PORT:
-            self->control = (LV2_Atom_Sequence*)data;
-            break;
         case NOTELENGTH:
             self->note_length = (float*)data;
             break;
@@ -514,26 +509,11 @@ static void
 run(LV2_Handle instance, uint32_t n_samples)
 {
     Arpeggiator* self = (Arpeggiator*)instance;
-
     const ClockURIs* uris = &self->uris;
-    const LV2_Atom_Sequence* in = self->control;
-
-    for (const LV2_Atom_Event* ev = lv2_atom_sequence_begin(&in->body);
-            !lv2_atom_sequence_is_end(&in->body, in->atom.size, ev);
-            ev = lv2_atom_sequence_next(ev)) {
-        if (ev->body.type == uris->atom_Object ||
-                ev->body.type == uris->atom_Blank) {
-            const LV2_Atom_Object* obj = (const LV2_Atom_Object*)&ev->body;
-            if (obj->body.otype == uris->time_Position) {
-                update_position(self, obj);
-            }
-        }
-    }
 
     float current_beat_pos = self->beat_in_measure;
 
     self->MIDI_out->atom.type = self->MIDI_in->atom.type;
-
     const uint32_t out_capacity = self->MIDI_out->atom.size;
 
     // Write an empty Sequence header to the output
@@ -542,9 +522,15 @@ run(LV2_Handle instance, uint32_t n_samples)
     // Read incoming events
     LV2_ATOM_SEQUENCE_FOREACH(self->MIDI_in, ev)
     {
-        debug_print("NEW MESSAGE\n");
         size_t search_note;
-        if (ev->body.type == self->urid_midiEvent)
+        if (ev->body.type == uris->atom_Object ||
+                ev->body.type == uris->atom_Blank) {
+            const LV2_Atom_Object* obj = (const LV2_Atom_Object*)&ev->body;
+            if (obj->body.otype == uris->time_Position) {
+                update_position(self, obj);
+            }
+        }
+        else if (ev->body.type == self->urid_midiEvent)
         {
             const uint8_t* const msg = (const uint8_t*)(ev + 1);
 
