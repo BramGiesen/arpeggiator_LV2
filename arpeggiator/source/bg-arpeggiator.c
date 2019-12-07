@@ -95,12 +95,14 @@ typedef struct {
     bool      latch_playing;
     bool      first_note;
     bool      phase_reset;
+    bool      first;
     float     speed; // Transport speed (usually 0=stop, 1=play)
     float     beat_in_measure;
     float     previous_beat_in_measure;
     float     previous_latch;
     float     time_position;
     int       previous_octave_mode;
+    int       bar_length;
 
     float*    cv_gate;
     float*    changeBpm;
@@ -453,6 +455,8 @@ instantiate(const LV2_Descriptor*     descriptor,
     self->latch_playing = false;
     self->first_note = false;
     self->phase_reset = false;
+    self->first = true;
+    self->bar_length = 4; //TODO make this variable
 
     for (unsigned i = 0; i < NUM_VOICES; i++) {
         self->midi_notes[i] = 200;
@@ -523,104 +527,6 @@ run(LV2_Handle instance, uint32_t n_samples)
     // Write an empty Sequence header to the output
     lv2_atom_sequence_clear(self->MIDI_out);
 
-    // Read incoming events
-    LV2_ATOM_SEQUENCE_FOREACH(self->MIDI_in, ev)
-    {
-        size_t search_note;
-        if (ev->body.type == uris->atom_Object ||
-                ev->body.type == uris->atom_Blank) {
-            const LV2_Atom_Object* obj = (const LV2_Atom_Object*)&ev->body;
-            if (obj->body.otype == uris->time_Position) {
-                update_position(self, obj);
-            }
-        }
-        else if (ev->body.type == self->urid_midiEvent)
-        {
-            const uint8_t* const msg = (const uint8_t*)(ev + 1);
-
-            const uint8_t status = msg[0] & 0xF0;
-
-            if (*self->plugin_enabled == 1) {
-
-                uint8_t midi_note = msg[1];
-                uint8_t note_to_find;
-                size_t find_free_voice;
-                bool voice_found;
-
-                switch (status)
-                {
-                    case LV2_MIDI_MSG_NOTE_ON:
-                        if (self->notes_pressed == 0) {
-                            if (!self->latch_playing) { //TODO check if there needs to be an exception when using sync
-                                if (*self->sync == 0) {
-                                    self->pos = 0;
-                                }
-                                self->octave_index = 0;
-                                self->note_played = 0;
-                                self->triggered = false;
-                            }
-                            if (*self->latch_mode == 1) {
-                                self->latch_playing = true;
-                                self->active_notes = 0;
-                                for (unsigned i = 0; i < NUM_VOICES; i++) {
-                                    self->midi_notes[i] = 200;
-                                }
-                            }
-                            if (*self->sync == 1 && !self->latch_playing) {
-                                self->first_note = true;
-                            }
-                        }
-                        self->notes_pressed++;
-                        self->active_notes++;
-                        find_free_voice = 0;
-                        voice_found = false;
-                        while (find_free_voice < NUM_VOICES && !voice_found)
-                        {
-                            if (self->midi_notes[find_free_voice] == 200) {
-                                self->midi_notes[find_free_voice] = midi_note;
-                                voice_found = true;
-                            }
-                            find_free_voice++;
-                        }
-                        if (*self->arp_mode != 4)
-                            quicksort(self->midi_notes, 0, NUM_VOICES - 1);
-                        if (midi_note < self->midi_notes[self->note_played - 1] &&
-                                self->note_played > 0) {
-                            self->note_played++;
-                        }
-                        break;
-                    case LV2_MIDI_MSG_NOTE_OFF:
-                        self->notes_pressed--;
-                        if (!self->latch_playing)
-                            self->active_notes = self->notes_pressed;
-                        note_to_find = midi_note;
-                        search_note = 0;
-                        if (*self->latch_mode == 0) {
-                            self->latch_playing = false;
-                            while (search_note < NUM_VOICES)
-                            {
-                                if (self->midi_notes[search_note] == note_to_find)
-                                {
-                                    self->midi_notes[search_note] = 200;
-                                    search_note = NUM_VOICES;
-                                }
-                                search_note++;
-                            }
-                            if (*self->arp_mode != 4)
-                                quicksort(self->midi_notes, 0, NUM_VOICES - 1);
-                        }
-                        break;
-                    default:
-                        break;
-                }
-            }
-            else {
-                //send MIDI message through
-                lv2_atom_sequence_append_event(self->MIDI_out, out_capacity, ev);
-            }
-        }
-    }
-
     if (*self->latch_mode == 0 && self->previous_latch == 1 && self->notes_pressed <= 0) {
         for (unsigned i = 0; i < NUM_VOICES; i++) {
             self->midi_notes[i] = 200;
@@ -631,18 +537,150 @@ run(LV2_Handle instance, uint32_t n_samples)
         self->previous_latch = *self->latch_mode;
     }
 
+    bool midi_received = false;
+
     for(uint32_t i = 0; i < n_samples; i ++) {
+
+        if (!midi_received) {
+            // Read incoming events
+            LV2_ATOM_SEQUENCE_FOREACH(self->MIDI_in, ev)
+            {
+                size_t search_note;
+                if (ev->body.type == uris->atom_Object ||
+                        ev->body.type == uris->atom_Blank) {
+                    const LV2_Atom_Object* obj = (const LV2_Atom_Object*)&ev->body;
+                    if (obj->body.otype == uris->time_Position) {
+                        update_position(self, obj);
+                    }
+                }
+                else if (ev->body.type == self->urid_midiEvent)
+                {
+                    midi_received = true;
+
+                    const uint8_t* const msg = (const uint8_t*)(ev + 1);
+
+                    const uint8_t status = msg[0] & 0xF0;
+
+                    if (*self->plugin_enabled == 1) {
+
+                        uint8_t midi_note = msg[1];
+                        uint8_t note_to_find;
+                        size_t find_free_voice;
+                        bool voice_found;
+
+                        switch (status)
+                        {
+                            case LV2_MIDI_MSG_NOTE_ON:
+                                if (self->notes_pressed == 0) {
+                                    if (!self->latch_playing) { //TODO check if there needs to be an exception when using sync
+                                        if (*self->sync == 0) {
+                                            self->pos = 0;
+                                        }
+                                        self->octave_index = 0;
+                                        self->note_played = 0;
+                                        self->triggered = false;
+                                    }
+                                    if (*self->latch_mode == 1) {
+                                        self->latch_playing = true;
+                                        self->active_notes = 0;
+                                        for (unsigned i = 0; i < NUM_VOICES; i++) {
+                                            self->midi_notes[i] = 200;
+                                        }
+                                    }
+                                    if (*self->sync == 1 && !self->latch_playing) {
+                                        self->first_note = true;
+                                    }
+                                }
+                                self->notes_pressed++;
+                                self->active_notes++;
+                                find_free_voice = 0;
+                                voice_found = false;
+                                while (find_free_voice < NUM_VOICES && !voice_found)
+                                {
+                                    if (self->midi_notes[find_free_voice] == 200) {
+                                        self->midi_notes[find_free_voice] = midi_note;
+                                        voice_found = true;
+                                    }
+                                    find_free_voice++;
+                                }
+                                if (*self->arp_mode != 4)
+                                    quicksort(self->midi_notes, 0, NUM_VOICES - 1);
+                                if (midi_note < self->midi_notes[self->note_played - 1] &&
+                                        self->note_played > 0) {
+                                    self->note_played++;
+                                }
+                                break;
+                            case LV2_MIDI_MSG_NOTE_OFF:
+                                self->notes_pressed--;
+                                if (!self->latch_playing)
+                                    self->active_notes = self->notes_pressed;
+                                note_to_find = midi_note;
+                                search_note = 0;
+                                if (*self->latch_mode == 0) {
+                                    self->latch_playing = false;
+                                    while (search_note < NUM_VOICES)
+                                    {
+                                        if (self->midi_notes[search_note] == note_to_find)
+                                        {
+                                            self->midi_notes[search_note] = 200;
+                                            search_note = NUM_VOICES;
+                                        }
+                                        search_note++;
+                                    }
+                                    if (*self->arp_mode != 4)
+                                        quicksort(self->midi_notes, 0, NUM_VOICES - 1);
+                                }
+                                break;
+                            default:
+                                break;
+                        }
+                    }
+                    else {
+                        if (*self->latch_mode == 0) {
+                            for (unsigned clear_notes = 0; clear_notes < NUM_VOICES; clear_notes++)
+                                self->midi_notes[clear_notes] = 200;
+                        }
+                        //send MIDI message through
+                        lv2_atom_sequence_append_event(self->MIDI_out, out_capacity, ev);
+                        self->first = true;
+
+                    }
+                }
+            }
+        }
         //map bpm to host or to bpm parameter
         if (*self->sync == 0) {
             self->bpm = *self->changeBpm;
         } else {
             self->bpm = self->host_bpm;
         }
-
-        if (*self->sync > 0) {
-            self->pos = reset_phase(self);
+        
+        if  (*self->sync > 0) {
+            if (self->beat_in_measure < 0.5 && !self->phase_reset) {
+                self->pos = reset_phase(self);
+                self->phase_reset = true;
+            } else if ((int)self->beat_in_measure >= 1 && self->phase_reset && self->bar_length > 1) {
+                self->phase_reset = false;
+            } else if (self->beat_in_measure > 0.9 && self->phase_reset && self->bar_length == 0) {
+                self->phase_reset = false;
+            }
         }
 
+        //resync phase when tempo is changed
+        if (self->bpm != self->previous_bpm && *self->sync > 0) {
+            self->pos = reset_phase(self);
+            self->previous_bpm = self->bpm;
+        }
+        //reset phase when sync is turned on
+        if (*self->sync != self->prev_sync) {
+            self->pos = reset_phase(self);
+            self->prev_sync = *self->sync;
+        }
+        //reset phase when there is a new division
+        if (self->divisions != *self->changedDiv) {
+            self->divisions = *self->changedDiv;
+            self->pos = reset_phase(self);
+        }
         //set CV gate
         if (self->notes_pressed > 0) {
             self->cv_gate[i] = 1.0;
@@ -657,6 +695,15 @@ run(LV2_Handle instance, uint32_t n_samples)
             self->pos = 0;
         } else {
             if((self->pos < self->h_wavelength && !self->triggered) || self->first_note) {
+
+                if (self->first) { //clear all notes before begining off sequence
+                    for (uint8_t note_off = 0; note_off < 127; note_off++) {
+                        LV2_Atom_MIDI offMsg = createMidiEvent(self, 128, note_off, 0);
+                        lv2_atom_sequence_append_event(self->MIDI_out, out_capacity, (LV2_Atom_Event*)&offMsg);
+                    }
+                    self->first = false;
+                }
+
                 //trigger MIDI message
                 handle_note_on(self, out_capacity);
                 self->triggered = true;
@@ -668,9 +715,7 @@ run(LV2_Handle instance, uint32_t n_samples)
             }
         }
         handle_note_off(self, out_capacity);
-        if (*self->sync == 0) {
-            self->pos += 1;
-        }
+        self->pos += 1;
     }
     self->previous_beat_in_measure = current_beat_pos;
 }
