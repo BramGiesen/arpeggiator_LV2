@@ -537,124 +537,117 @@ run(LV2_Handle instance, uint32_t n_samples)
         self->previous_latch = *self->latch_mode;
     }
 
-    bool midi_received = false;
-
-    for(uint32_t i = 0; i < n_samples; i ++) {
-
-        if (!midi_received) {
-            // Read incoming events
-            LV2_ATOM_SEQUENCE_FOREACH(self->MIDI_in, ev)
-            {
-                size_t search_note;
-                if (ev->body.type == uris->atom_Object ||
-                        ev->body.type == uris->atom_Blank) {
-                    const LV2_Atom_Object* obj = (const LV2_Atom_Object*)&ev->body;
-                    if (obj->body.otype == uris->time_Position) {
-                        update_position(self, obj);
-                    }
-                }
-                else if (ev->body.type == self->urid_midiEvent)
-                {
-                    midi_received = true;
-
-                    const uint8_t* const msg = (const uint8_t*)(ev + 1);
-
-                    const uint8_t status = msg[0] & 0xF0;
-
-                    if (*self->plugin_enabled == 1) {
-
-                        uint8_t midi_note = msg[1];
-                        uint8_t note_to_find;
-                        size_t find_free_voice;
-                        bool voice_found;
-
-                        switch (status)
-                        {
-                            case LV2_MIDI_MSG_NOTE_ON:
-                                if (self->notes_pressed == 0) {
-                                    if (!self->latch_playing) { //TODO check if there needs to be an exception when using sync
-                                        if (*self->sync == 0) {
-                                            self->pos = 0;
-                                        }
-                                        self->octave_index = 0;
-                                        self->note_played = 0;
-                                        self->triggered = false;
-                                    }
-                                    if (*self->latch_mode == 1) {
-                                        self->latch_playing = true;
-                                        self->active_notes = 0;
-                                        for (unsigned i = 0; i < NUM_VOICES; i++) {
-                                            self->midi_notes[i] = 200;
-                                        }
-                                    }
-                                    if (*self->sync == 1 && !self->latch_playing) {
-                                        self->first_note = true;
-                                    }
-                                }
-                                self->notes_pressed++;
-                                self->active_notes++;
-                                find_free_voice = 0;
-                                voice_found = false;
-                                while (find_free_voice < NUM_VOICES && !voice_found)
-                                {
-                                    if (self->midi_notes[find_free_voice] == 200) {
-                                        self->midi_notes[find_free_voice] = midi_note;
-                                        voice_found = true;
-                                    }
-                                    find_free_voice++;
-                                }
-                                if (*self->arp_mode != 4)
-                                    quicksort(self->midi_notes, 0, NUM_VOICES - 1);
-                                if (midi_note < self->midi_notes[self->note_played - 1] &&
-                                        self->note_played > 0) {
-                                    self->note_played++;
-                                }
-                                break;
-                            case LV2_MIDI_MSG_NOTE_OFF:
-                                self->notes_pressed--;
-                                if (!self->latch_playing)
-                                    self->active_notes = self->notes_pressed;
-                                note_to_find = midi_note;
-                                search_note = 0;
-                                if (*self->latch_mode == 0) {
-                                    self->latch_playing = false;
-                                    while (search_note < NUM_VOICES)
-                                    {
-                                        if (self->midi_notes[search_note] == note_to_find)
-                                        {
-                                            self->midi_notes[search_note] = 200;
-                                            search_note = NUM_VOICES;
-                                        }
-                                        search_note++;
-                                    }
-                                    if (*self->arp_mode != 4)
-                                        quicksort(self->midi_notes, 0, NUM_VOICES - 1);
-                                }
-                                break;
-                            default:
-                                break;
-                        }
-                    }
-                    else {
-                        if (*self->latch_mode == 0) {
-                            for (unsigned clear_notes = 0; clear_notes < NUM_VOICES; clear_notes++)
-                                self->midi_notes[clear_notes] = 200;
-                        }
-                        //send MIDI message through
-                        lv2_atom_sequence_append_event(self->MIDI_out, out_capacity, ev);
-                        self->first = true;
-
-                    }
-                }
+    // Read incoming events
+    LV2_ATOM_SEQUENCE_FOREACH(self->MIDI_in, ev)
+    {
+        size_t search_note;
+        if (ev->body.type == uris->atom_Object ||
+                ev->body.type == uris->atom_Blank) {
+            const LV2_Atom_Object* obj = (const LV2_Atom_Object*)&ev->body;
+            if (obj->body.otype == uris->time_Position) {
+                update_position(self, obj);
             }
         }
+        else if (ev->body.type == self->urid_midiEvent)
+        {
+            const uint8_t* const msg = (const uint8_t*)(ev + 1);
+
+            const uint8_t status = msg[0] & 0xF0;
+
+            if (*self->plugin_enabled == 1) {
+
+                uint8_t midi_note = msg[1];
+                uint8_t note_to_find;
+                size_t find_free_voice;
+                bool voice_found;
+
+                switch (status)
+                {
+                    case LV2_MIDI_MSG_NOTE_ON:
+                        if (self->notes_pressed == 0) {
+                            if (!self->latch_playing) { //TODO check if there needs to be an exception when using sync
+                                if (*self->sync == 0) {
+                                    self->pos = 0;
+                                }
+                                self->octave_index = 0;
+                                self->note_played = 0;
+                                self->triggered = false;
+                            }
+                            if (*self->latch_mode == 1) {
+                                self->latch_playing = true;
+                                self->active_notes = 0;
+                                for (unsigned i = 0; i < NUM_VOICES; i++) {
+                                    self->midi_notes[i] = 200;
+                                }
+                            }
+                            if (*self->sync == 1 && !self->latch_playing) {
+                                self->first_note = true;
+                            }
+                        }
+                        self->notes_pressed++;
+                        self->active_notes++;
+                        find_free_voice = 0;
+                        voice_found = false;
+                        while (find_free_voice < NUM_VOICES && !voice_found)
+                        {
+                            if (self->midi_notes[find_free_voice] == 200) {
+                                self->midi_notes[find_free_voice] = midi_note;
+                                voice_found = true;
+                            }
+                            find_free_voice++;
+                        }
+                        if (*self->arp_mode != 4)
+                            quicksort(self->midi_notes, 0, NUM_VOICES - 1);
+                        if (midi_note < self->midi_notes[self->note_played - 1] &&
+                                self->note_played > 0) {
+                            self->note_played++;
+                        }
+                        break;
+                    case LV2_MIDI_MSG_NOTE_OFF:
+                        self->notes_pressed--;
+                        if (!self->latch_playing)
+                            self->active_notes = self->notes_pressed;
+                        note_to_find = midi_note;
+                        search_note = 0;
+                        if (*self->latch_mode == 0) {
+                            self->latch_playing = false;
+                            while (search_note < NUM_VOICES)
+                            {
+                                if (self->midi_notes[search_note] == note_to_find)
+                                {
+                                    self->midi_notes[search_note] = 200;
+                                    search_note = NUM_VOICES;
+                                }
+                                search_note++;
+                            }
+                            if (*self->arp_mode != 4)
+                                quicksort(self->midi_notes, 0, NUM_VOICES - 1);
+                        }
+                        break;
+                    default:
+                        break;
+                }
+            }
+            else {
+                if (*self->latch_mode == 0) {
+                    for (unsigned clear_notes = 0; clear_notes < NUM_VOICES; clear_notes++)
+                        self->midi_notes[clear_notes] = 200;
+                }
+                //send MIDI message through
+                lv2_atom_sequence_append_event(self->MIDI_out, out_capacity, ev);
+                self->first = true;
+
+            }
+        }
+    }
+    for(uint32_t i = 0; i < n_samples; i ++) {
         //map bpm to host or to bpm parameter
         if (*self->sync == 0) {
             self->bpm = *self->changeBpm;
         } else {
             self->bpm = self->host_bpm;
         }
-        
+
         if  (*self->sync > 0) {
             if (self->beat_in_measure < 0.5 && !self->phase_reset) {
                 self->pos = reset_phase(self);
@@ -696,10 +689,11 @@ run(LV2_Handle instance, uint32_t n_samples)
         } else {
             if((self->pos < self->h_wavelength && !self->triggered) || self->first_note) {
 
-                if (self->first) { //clear all notes before begining off sequence
+                if (self->first && *self->plugin_enabled == 1.0) { //clear all notes before begining off sequence
                     for (uint8_t note_off = 0; note_off < 127; note_off++) {
                         LV2_Atom_MIDI offMsg = createMidiEvent(self, 128, note_off, 0);
                         lv2_atom_sequence_append_event(self->MIDI_out, out_capacity, (LV2_Atom_Event*)&offMsg);
+                        debug_print("send note of for %i\n", note_off);
                     }
                     self->first = false;
                 }
