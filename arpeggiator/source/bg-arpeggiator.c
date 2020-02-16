@@ -45,6 +45,22 @@ typedef enum {
     BYPASS
 } PortIndex;
 
+typedef enum {
+    ARP_UP = 0,
+    ARP_DOWN,
+    ARP_UP_DOWN,
+    ARP_UP_DOWN_ALT,
+    ARP_PLAYED,
+    ARP_RANDOM
+} ArpEnum;
+
+typedef enum {
+    OCTAVE_UP = 0,
+    OCTAVE_DOWN,
+    OCTAVE_UP_DOWN,
+    OCTAVE_DOWN_UP
+} OctaveEnum;
+
 
 typedef struct {
     LV2_URID atom_Blank;
@@ -156,23 +172,23 @@ octaveHandler(Arpeggiator* self)
     int octaveMode = *self->octaveModeParam;
 
     if (octaveMode != self->previous_octave_mode) {
-        switch (octaveMode)
+        switch ((OctaveEnum)octaveMode)
         {
-            case 0:
+            case OCTAVE_UP:
                 self->octave_index = self->note_played % (int)*self->octaveSpreadParam;
                 break;
-            case 1:
+            case OCTAVE_DOWN:
                 self->octave_index = self->note_played % (int)*self->octaveSpreadParam;
                 self->octave_index = (int)*self->octaveSpreadParam;
                 break;
-            case 2:
+            case OCTAVE_UP_DOWN:
                 self->octave_index = self->note_played % (int)(*self->octaveSpreadParam * 2);
                 if (self->octave_index > (int)*self->octaveSpreadParam) {
                     self->octave_index = abs((int)*self->octaveSpreadParam - (self->octave_index - (int)*self->octaveSpreadParam)) % (int)*self->octaveSpreadParam;
                 }
                 self->octave_up = !self->octave_up;
                 break;
-            case 3:
+            case OCTAVE_DOWN_UP:
                 self->octave_index = (int)*self->octaveSpreadParam;
                 self->octave_up = !self->octave_up;
                 break;
@@ -183,16 +199,16 @@ octaveHandler(Arpeggiator* self)
     if (*self->octaveSpreadParam > 1) {
         switch (octaveMode)
         {
-            case 0:
+            case OCTAVE_UP:
                 octave = 12 * self->octave_index;
                 self->octave_index = (self->octave_index + 1) % (int)*self->octaveSpreadParam;
                 break;
-            case 1:
+            case OCTAVE_DOWN:
                 octave = 12 * self->octave_index;
                 self->octave_index--;
                 self->octave_index = (self->octave_index < 0) ? (int)*self->octaveSpreadParam - 1 : self->octave_index;
                 break;
-            case 2:
+            case OCTAVE_UP_DOWN:
                 octave = 12 * self->octave_index;
 
                 if (self->octave_up) {
@@ -203,7 +219,7 @@ octaveHandler(Arpeggiator* self)
                     self->octave_up = (self->octave_index <= 0) ? true : false;
                 }
                 break;
-            case 3:
+            case OCTAVE_DOWN_UP:
                 octave = 12 * self->octave_index;
                 if (!self->octave_up) {
                     self->octave_index--;
@@ -267,13 +283,13 @@ handleNoteOn(Arpeggiator* self, const uint32_t outCapacity)
             self->active_notes_index = (self->active_notes_index + 1) % NUM_VOICES;
             note_found = true;
         }
-        if (*self->arp_mode == 0 || (*self->arp_mode == 2 && self->active_notes < 3)
-                || *self->arp_mode == 4 ) {
+        if ((ArpEnum)*self->arp_mode == ARP_UP || ((ArpEnum)*self->arp_mode == ARP_UP_DOWN && self->active_notes < 3)
+                || (ArpEnum)*self->arp_mode == ARP_PLAYED ) {
             self->note_played = (self->note_played + 1) % NUM_VOICES;
-        } else if (*self->arp_mode == 1) {
+        } else if ((ArpEnum)*self->arp_mode == ARP_DOWN) {
             self->note_played--;
             self->note_played = (self->note_played < 0) ? (int)self->active_notes : self->note_played;
-        } else if (*self->arp_mode == 5) {
+        } else if ((ArpEnum)*self->arp_mode == ARP_RANDOM) {
             int active_div = (self->active_notes <= 0) ? 1 : (int)self->active_notes;
             self->note_played = random() % active_div;
         } else{
@@ -281,13 +297,13 @@ handleNoteOn(Arpeggiator* self, const uint32_t outCapacity)
                 self->note_played++;
                 if (self->note_played >= self->active_notes) {
                    self->arp_up = false;
-                   if (*self->arp_mode != 3) {
+                   if ((ArpEnum)*self->arp_mode != ARP_UP_DOWN_ALT) {
                        self->note_played = (self->active_notes > 1) ? self->note_played - 2 : self->note_played;
                    }
                 }
             } else {
                 self->note_played--;
-                if (*self->arp_mode != 3) {
+                if ((ArpEnum)*self->arp_mode != ARP_UP_DOWN_ALT) {
                     self->arp_up = (self->note_played <= 0) ? true : false;
                 } else {
                     self->arp_up = (self->note_played < 0) ? true : false;
@@ -326,10 +342,10 @@ connect_port(LV2_Handle instance,
 
     switch ((PortIndex)port) {
         case MIDI_IN:
-            self->MIDI_in    = (const LV2_Atom_Sequence*)data;
+            self->MIDI_in = (const LV2_Atom_Sequence*)data;
             break;
         case MIDI_OUT:
-            self->MIDI_out   = (LV2_Atom_Sequence*)data;
+            self->MIDI_out = (LV2_Atom_Sequence*)data;
             break;
         case CV_GATE:
             self->cv_gate = (float*)data;
@@ -356,7 +372,7 @@ connect_port(LV2_Handle instance,
             self->octaveSpreadParam = (float*)data;
             break;
         case OCTAVEMODE:
-            self->octaveModeParam  = (float*)data;
+            self->octaveModeParam = (float*)data;
             break;
         case VELOCITY:
             self->velocity = (float*)data;
@@ -575,7 +591,7 @@ run(LV2_Handle instance, uint32_t n_samples)
                             }
                             find_free_voice++;
                         }
-                        if (*self->arp_mode != 4)
+                        if ((ArpEnum)*self->arp_mode != ARP_PLAYED)
                             quicksort(self->midi_notes, 0, NUM_VOICES - 1);
                         if (midi_note < self->midi_notes[self->note_played - 1] &&
                                 self->note_played > 0) {
@@ -599,7 +615,7 @@ run(LV2_Handle instance, uint32_t n_samples)
                                 }
                                 search_note++;
                             }
-                            if (*self->arp_mode != 4)
+                            if ((ArpEnum)*self->arp_mode != ARP_PLAYED)
                                 quicksort(self->midi_notes, 0, NUM_VOICES - 1);
                         }
                         break;
