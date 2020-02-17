@@ -582,6 +582,13 @@ run(LV2_Handle instance, uint32_t n_samples)
                 size_t find_free_voice;
                 bool voice_found;
 
+                if (midi_note == 0x7b) {
+                    self->active_notes = 0;
+                    for (unsigned i = 0; i < NUM_VOICES; i++) {
+                        self->midi_notes[i] = 200;
+                    }
+                }
+
                 switch (status)
                 {
                     case LV2_MIDI_MSG_NOTE_ON:
