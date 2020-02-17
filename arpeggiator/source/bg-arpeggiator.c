@@ -202,20 +202,23 @@ octaveHandler(Arpeggiator* self)
     }
 
     if (*self->octaveSpreadParam > 1) {
+
+        if (self->octave_index < 0) {
+            self->octave_index += *self->octaveSpreadParam;
+        }
+
+        octave = 12 * (self->octave_index % (int)*self->octaveSpreadParam);
+
         switch (octaveMode)
         {
             case OCTAVE_UP:
-                octave = 12 * self->octave_index;
                 self->octave_index = (self->octave_index + 1) % (int)*self->octaveSpreadParam;
                 break;
             case OCTAVE_DOWN:
-                octave = 12 * self->octave_index;
                 self->octave_index--;
                 self->octave_index = (self->octave_index < 0) ? (int)*self->octaveSpreadParam - 1 : self->octave_index;
                 break;
             case OCTAVE_UP_DOWN:
-                octave = 12 * self->octave_index;
-
                 if (self->octave_up) {
                     self->octave_index++;
                     self->octave_up = (self->octave_index >= (int)*self->octaveSpreadParam - 1) ? false : true;
@@ -225,7 +228,6 @@ octaveHandler(Arpeggiator* self)
                 }
                 break;
             case OCTAVE_DOWN_UP:
-                octave = 12 * self->octave_index;
                 if (!self->octave_up) {
                     self->octave_index--;
                     self->octave_up = (self->octave_index <= 0) ? true : false;
@@ -238,6 +240,9 @@ octaveHandler(Arpeggiator* self)
     } else {
         self->octave_index = 0;
     }
+
+
+    debug_print("octave = %i\n", octave);
 
     return octave;
 }
