@@ -112,6 +112,7 @@ typedef struct {
     bool      first_note;
     bool      phase_reset;
     bool      first;
+    bool      note_on_received;
     float     speed; // Transport speed (usually 0=stop, 1=play)
     float     beat_in_measure;
     float     previous_beat_in_measure;
@@ -119,6 +120,7 @@ typedef struct {
     float     time_position;
     int       previous_octave_mode;
     int       bar_length;
+    int       active_notes_bypassed;
 
     float*    cv_gate;
     float*    changeBpm;
@@ -473,10 +475,12 @@ instantiate(const LV2_Descriptor*     descriptor,
     self->previous_latch = 0;
     self->previous_midinote = 0;
     self->notes_pressed = 0;
+    self->active_notes_bypassed = 0;
     self->latch_playing = false;
     self->first_note = false;
     self->phase_reset = false;
     self->first = true;
+    self->note_on_received = false;
     self->bar_length = 4; //TODO make this variable
 
     for (unsigned i = 0; i < NUM_VOICES; i++) {
@@ -582,7 +586,8 @@ run(LV2_Handle instance, uint32_t n_samples)
                 size_t find_free_voice;
                 bool voice_found;
 
-                if (midi_note == 0x7b) {
+                if (self->active_notes_bypassed > 0 || midi_note == 0x7b) {
+                    self->active_notes_bypassed = 0;
                     self->active_notes = 0;
                     for (unsigned i = 0; i < NUM_VOICES; i++) {
                         self->midi_notes[i] = 200;
@@ -657,9 +662,25 @@ run(LV2_Handle instance, uint32_t n_samples)
                 }
             }
             else {
+
                 if (*self->latch_mode == 0) {
                     for (unsigned clear_notes = 0; clear_notes < NUM_VOICES; clear_notes++)
                         self->midi_notes[clear_notes] = 200;
+                }
+
+                switch (status)
+                {
+                    case LV2_MIDI_MSG_NOTE_ON:
+                        self->note_on_received = true;
+                        self->active_notes_bypassed++;
+                        break;
+                    case LV2_MIDI_MSG_NOTE_OFF:
+                        if (self->note_on_received) {
+                            self->active_notes_bypassed--;
+                        }
+                        break;
+                    default:
+                        break;
                 }
                 //send MIDI message through
                 lv2_atom_sequence_append_event(self->MIDI_out, out_capacity, ev);
@@ -721,7 +742,6 @@ run(LV2_Handle instance, uint32_t n_samples)
                     for (uint8_t note_off = 0; note_off < 127; note_off++) {
                         LV2_Atom_MIDI offMsg = createMidiEvent(self, 128, note_off, 0);
                         lv2_atom_sequence_append_event(self->MIDI_out, out_capacity, (LV2_Atom_Event*)&offMsg);
-                        debug_print("send note of for %i\n", note_off);
                     }
                     self->first = false;
                 }
