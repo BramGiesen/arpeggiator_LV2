@@ -113,6 +113,7 @@ typedef struct {
     bool      phase_reset;
     bool      first;
     bool      note_on_received;
+    bool      switched_on;
     float     speed; // Transport speed (usually 0=stop, 1=play)
     float     beat_in_measure;
     float     previous_beat_in_measure;
@@ -481,6 +482,7 @@ instantiate(const LV2_Descriptor*     descriptor,
     self->phase_reset = false;
     self->first = true;
     self->note_on_received = false;
+    self->switched_on = false;
     self->bar_length = 4; //TODO make this variable
 
     for (unsigned i = 0; i < NUM_VOICES; i++) {
@@ -586,8 +588,7 @@ run(LV2_Handle instance, uint32_t n_samples)
                 size_t find_free_voice;
                 bool voice_found;
 
-                if (self->active_notes_bypassed > 0 || midi_note == 0x7b) {
-                    self->active_notes_bypassed = 0;
+                if (midi_note == 0x7b) {
                     self->active_notes = 0;
                     for (unsigned i = 0; i < NUM_VOICES; i++) {
                         self->midi_notes[i] = 200;
@@ -637,11 +638,23 @@ run(LV2_Handle instance, uint32_t n_samples)
                         }
                         break;
                     case LV2_MIDI_MSG_NOTE_OFF:
-                        self->notes_pressed--;
-                        if (!self->latch_playing)
-                            self->active_notes = self->notes_pressed;
-                        note_to_find = midi_note;
+                        //self->notes_pressed--;
                         search_note = 0;
+                        note_to_find = midi_note;
+                        if (!self->latch_playing) {
+                            self->notes_pressed--;
+                            self->active_notes = self->notes_pressed;
+                        }
+                        else {
+                            while (search_note < NUM_VOICES)
+                            {
+                                if (self->midi_notes[search_note] == note_to_find) {
+                                    search_note = NUM_VOICES;
+                                    self->notes_pressed--;
+                                }
+                                search_note++;
+                            }
+                        }
                         if (*self->latch_mode == 0) {
                             self->latch_playing = false;
                             while (search_note < NUM_VOICES)
@@ -666,6 +679,10 @@ run(LV2_Handle instance, uint32_t n_samples)
                 if (*self->latch_mode == 0) {
                     for (unsigned clear_notes = 0; clear_notes < NUM_VOICES; clear_notes++)
                         self->midi_notes[clear_notes] = 200;
+                }
+                if (!self->switched_on) {
+                    self->active_notes_bypassed = self->active_notes;
+                    self->switched_on = true;
                 }
 
                 switch (status)
