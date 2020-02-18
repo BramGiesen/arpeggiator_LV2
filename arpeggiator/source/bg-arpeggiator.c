@@ -410,6 +410,34 @@ activate(LV2_Handle instance)
     self->pos = 0;
 }
 
+static void
+clear(Arpeggiator* self)
+{
+    //self->prev_sync   = 0;
+    self->triggered = false;
+    self->octave_up = false;
+    self->arp_up    = true;
+    self->active_notes_index = 0;
+    self->note_played = 0;
+    self->active_notes = 0;
+    self->previous_octave_mode = 0;
+    self->octave_index = 0;
+    self->previous_latch = 0;
+    self->previous_midinote = 0;
+    self->notes_pressed = 0;
+    self->active_notes_bypassed = 0;
+    self->latch_playing = false;
+    self->first_note = false;
+    self->phase_reset = false;
+    self->first = true;
+    self->note_on_received = false;
+    self->switched_on = false;
+    self->bar_length = 4; //TODO make this variable
+
+    for (unsigned i = 0; i < NUM_VOICES; i++) {
+        self->midi_notes[i] = 200;
+    }
+}
 
 
 static LV2_Handle
@@ -555,10 +583,11 @@ run(LV2_Handle instance, uint32_t n_samples)
     lv2_atom_sequence_clear(self->MIDI_out);
 
     if (*self->latch_mode == 0 && self->previous_latch == 1 && self->notes_pressed <= 0) {
-        for (unsigned i = 0; i < NUM_VOICES; i++) {
-            self->midi_notes[i] = 200;
-            self->note_played = 0;
-        }
+        clear(self);
+        //for (unsigned i = 0; i < NUM_VOICES; i++) {
+        //    self->midi_notes[i] = 200;
+        //    self->note_played = 0;
+        //}
     }
     if (*self->latch_mode != self->previous_latch) {
         self->previous_latch = *self->latch_mode;
