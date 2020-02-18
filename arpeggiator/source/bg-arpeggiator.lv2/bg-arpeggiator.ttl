@@ -188,9 +188,19 @@ lv2:port
 ]
 ,
 [
+    a lv2:InputPort, lv2:ControlPort ;
+    lv2:index 12;
+    lv2:symbol "TimeOut" ;
+    lv2:name "Time Out" ;
+    lv2:default 480 ;
+    lv2:minimum 0  ;
+    lv2:maximum 4800;
+]
+,
+[
     a lv2:InputPort ,
     lv2:ControlPort ;
-    lv2:index 12;
+    lv2:index 13;
     lv2:symbol "PluginEnabled" ;
     lv2:name "PluginEnabled" ;
     lv2:default 1.0 ;
