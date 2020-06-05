@@ -59,7 +59,8 @@ typedef enum {
     OCTAVE_UP = 0,
     OCTAVE_DOWN,
     OCTAVE_UP_DOWN,
-    OCTAVE_DOWN_UP
+    OCTAVE_DOWN_UP,
+    OCTAVE_CYCLE
 } OctaveEnum;
 
 
@@ -204,6 +205,9 @@ octaveHandler(Arpeggiator* self)
                 self->octave_index = (int)*self->octaveSpreadParam;
                 self->octave_up = !self->octave_up;
                 break;
+            case OCTAVE_CYCLE:
+                self->octave_index = self->note_played % (int)*self->octaveSpreadParam;
+                break;
         }
         self->previous_octave_mode = octaveMode;
     }
@@ -241,6 +245,11 @@ octaveHandler(Arpeggiator* self)
                 } else {
                     self->octave_index = (self->octave_index + 1) % (int)*self->octaveSpreadParam;
                     self->octave_up = (self->octave_index >= (int)*self->octaveSpreadParam - 1) ? false : true;
+                }
+                break;
+            case OCTAVE_CYCLE:
+                if (self->note_played == 0) {
+                    self->octave_index = (self->octave_index + 1) % (int)*self->octaveSpreadParam;
                 }
                 break;
         }
@@ -294,12 +303,6 @@ handle_note_on(Arpeggiator* self, const uint32_t outCapacity)
 
             if (*self->plugin_enabled == 1) {
                 LV2_Atom_MIDI onMsg = createMidiEvent(self, 144, midi_note, velocity);
-                debug_print("midi_note = %i\n", midi_note);
-                debug_print("self->note_played = %i\n", self->note_played);
-                for (unsigned t = 0; t < 3; t++) {
-
-                    debug_print("note array[%i] = %i\n", t, self->midi_notes[t]);
-                }
                 lv2_atom_sequence_append_event(self->MIDI_out, outCapacity, (LV2_Atom_Event*)&onMsg);
                 self->noteoff_buffer[self->active_notes_index][0] = (uint32_t)midi_note;
             }
@@ -643,6 +646,7 @@ run(LV2_Handle instance, uint32_t n_samples)
                 switch (status)
                 {
                     case LV2_MIDI_MSG_NOTE_ON:
+                        debug_print("note on\n");
                         if (self->notes_pressed == 0) {
                             if (!self->latch_playing) { //TODO check if there needs to be an exception when using sync
                                 if (*self->sync == 0.0) {
@@ -684,7 +688,7 @@ run(LV2_Handle instance, uint32_t n_samples)
                         break;
                     case LV2_MIDI_MSG_NOTE_OFF:
                         //self->notes_pressed--;
-                        debug_print("============================================\n");
+                        debug_print("note off\n");
                         search_note = 0;
                         note_to_find = midi_note;
                         if (!self->latch_playing) {
@@ -717,6 +721,7 @@ run(LV2_Handle instance, uint32_t n_samples)
                         }
                         break;
                     default:
+                        lv2_atom_sequence_append_event(self->MIDI_out, out_capacity, ev);
                         break;
                 }
             }
@@ -804,10 +809,6 @@ run(LV2_Handle instance, uint32_t n_samples)
             }
             if(((self->pos < self->h_wavelength && !self->triggered) && !self->first_note) || (self->first_note_timer > (int)*self->time_out)) {
 
-                
-                debug_print("note off time = %i\n", self->first_note_timer);
-                //debug_print("self->events_coutner = %i\n", self->events_counter);
-                //debug_print("self->pos %i\n", self->pos);
                 self->events_counter = 0;
 
                 if (self->first && *self->plugin_enabled == 1.0) { //clear all notes before begining off sequence
