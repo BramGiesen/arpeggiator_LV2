@@ -1,5 +1,7 @@
 This repository contains an arpeggiator and a MIDI-pattern plugin developed for the MOD platform.
 
+PLEASE NOTE: The development for the arpeggiator has moved to [this](https://github.com/moddevices/mod-arpeggiator-lv2) repository. Please see this repository for the latest versions. 
+
 # Arpeggiator
 
 The arpeggiator has the following options:
